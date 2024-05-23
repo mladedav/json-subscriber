@@ -1,27 +1,21 @@
-use std::{cell::RefCell, collections::BTreeMap, fmt, io};
+use std::{cell::RefCell, collections::BTreeMap, io};
 
-use serde::ser::SerializeMap;
-use serde::Serializer as _;
 use tracing_core::{
     span::{Attributes, Id, Record},
     Event, Subscriber,
 };
-use tracing_serde::AsSerde;
 use tracing_subscriber::{
     fmt::{
-        format::{self, Writer},
+        format,
         time::{FormatTime, SystemTime},
         MakeWriter, TestWriter,
     },
     layer::SubscriberExt,
-    registry,
+    registry::Extensions,
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::serde::SerializableContext;
-use crate::serde::SerializableSpan;
 use crate::visitor::JsonVisitor;
-use crate::write_adaptor::WriteAdaptor;
 
 #[derive(Default)]
 pub struct FormattedFields {
@@ -39,8 +33,8 @@ impl std::fmt::Debug for FormattedFields {
 }
 
 pub struct JsonLayer<W = fn() -> io::Stdout, T = SystemTime> {
-    make_writer: W,
-    timer: T,
+    pub(crate) make_writer: W,
+    pub(crate) timer: T,
 
     pub(crate) log_internal_errors: bool,
 
@@ -77,116 +71,13 @@ impl Default for JsonLayer {
     }
 }
 
-impl<W, T> JsonLayer<W, T> {
-    fn format_event<S>(
-        &self,
-        ctx: Context<'_, S>,
-        mut writer: Writer<'_>,
-        event: &Event<'_>,
-    ) -> fmt::Result
-    where
-        S: Subscriber + for<'a> LookupSpan<'a>,
-        T: FormatTime,
-    {
-        let mut timestamp = String::new();
-        self.timer.format_time(&mut Writer::new(&mut timestamp))?;
-
-        #[cfg(feature = "tracing-log")]
-        let normalized_meta = event.normalized_metadata();
-        #[cfg(feature = "tracing-log")]
-        let meta = normalized_meta.as_ref().unwrap_or_else(|| event.metadata());
-        #[cfg(not(feature = "tracing-log"))]
-        let meta = event.metadata();
-
-        let mut visit = || {
-            let mut serializer = serde_json::Serializer::new(WriteAdaptor::new(&mut writer));
-
-            let mut serializer = serializer.serialize_map(None)?;
-
-            if self.display_timestamp {
-                serializer.serialize_entry("timestamp", &timestamp)?;
-            }
-
-            if self.display_level {
-                serializer.serialize_entry("level", &meta.level().as_serde())?;
-            }
-
-            let current_span =
-                if (self.display_current_span || self.display_span_list) && !event.is_root() {
-                    event
-                        .parent()
-                        .and_then(|id| ctx.span(id))
-                        .or_else(|| ctx.lookup_current())
-                } else {
-                    None
-                };
-
-            if self.flatten_event {
-                let mut visitor = tracing_serde::SerdeMapVisitor::new(serializer);
-                event.record(&mut visitor);
-
-                serializer = visitor.take_serializer()?;
-            } else {
-                use tracing_serde::fields::AsMap;
-                serializer.serialize_entry("fields", &event.field_map())?;
-            };
-
-            if self.display_target {
-                serializer.serialize_entry("target", meta.target())?;
-            }
-
-            if self.display_filename {
-                if let Some(filename) = meta.file() {
-                    serializer.serialize_entry("filename", filename)?;
-                }
-            }
-
-            if self.display_line_number {
-                if let Some(line_number) = meta.line() {
-                    serializer.serialize_entry("line_number", &line_number)?;
-                }
-            }
-
-            if self.display_current_span {
-                if let Some(ref span) = current_span {
-                    serializer
-                        .serialize_entry("span", &SerializableSpan(span))
-                        .unwrap_or(());
-                }
-            }
-
-            if self.display_span_list {
-                if let Some(ref span) = current_span {
-                    serializer.serialize_entry("spans", &SerializableContext(span))?;
-                }
-            }
-
-            if self.display_thread_name {
-                let current_thread = std::thread::current();
-                match current_thread.name() {
-                    Some(name) => {
-                        serializer.serialize_entry("threadName", name)?;
-                    }
-                    // fall-back to thread id when name is absent and ids are not enabled
-                    None if !self.display_thread_id => {
-                        serializer
-                            .serialize_entry("threadName", &format!("{:?}", current_thread.id()))?;
-                    }
-                    _ => {}
-                }
-            }
-
-            if self.display_thread_id {
-                serializer
-                    .serialize_entry("threadId", &format!("{:?}", std::thread::current().id()))?;
-            }
-
-            serializer.end()
-        };
-
-        visit().map_err(|_| fmt::Error)?;
-        writeln!(writer)
-    }
+pub enum JsonValue {
+    Struct(BTreeMap<&'static str, JsonValue>),
+    Array(Vec<JsonValue>),
+    String(String),
+    Number(f64),
+    Bool(bool),
+    Dynamic(Box<dyn FnMut(Extensions<'_>) -> serde_json::Value>),
 }
 
 impl<S, W, T> Layer<S> for JsonLayer<W, T>
@@ -289,7 +180,7 @@ where
     T: FormatTime + 'static,
 {
     pub fn finish(self) -> impl Subscriber + for<'a> LookupSpan<'a> {
-        registry().with(self)
+        tracing_subscriber::registry().with(self)
     }
 }
 
@@ -667,6 +558,7 @@ mod test {
     use crate::tests::MockMakeWriter;
 
     use super::*;
+    use tracing_subscriber::fmt::format::Writer;
     use tracing_subscriber::fmt::{format::FmtSpan, time::FormatTime};
 
     use tracing::subscriber::with_default;
@@ -689,7 +581,7 @@ mod test {
     // #[test]
     // fn json() {
     //     let expected =
-    //     "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+    //     "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]}],\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
     //     let collector = subscriber()
     //         .flatten_event(false)
     //         .with_current_span(true)
@@ -735,7 +627,7 @@ mod test {
     #[test]
     fn json_line_number() {
         let expected =
-            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
+            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_json::layer::test\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -751,7 +643,7 @@ mod test {
     #[test]
     fn json_flattened_event() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"message\":\"some json test\"}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_json::layer::test\",\"message\":\"some json test\"}\n";
 
         let collector = subscriber()
             .flatten_event(true)
@@ -767,7 +659,7 @@ mod test {
     #[test]
     fn json_disabled_current_span_event() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(false)
@@ -782,7 +674,7 @@ mod test {
     #[test]
     fn json_disabled_span_list_event() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -797,7 +689,7 @@ mod test {
     #[test]
     fn json_nested_span() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -819,7 +711,7 @@ mod test {
     #[test]
     fn json_explicit_span() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -841,7 +733,7 @@ mod test {
     #[test]
     fn json_explicit_no_span() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -863,7 +755,7 @@ mod test {
     #[test]
     fn json_no_span() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"tracing_subscriber::fmt::format::json::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
