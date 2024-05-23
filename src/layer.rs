@@ -48,7 +48,17 @@ pub struct JsonLayer<W = fn() -> io::Stdout, T = SystemTime> {
     pub(crate) flatten_event: bool,
     pub(crate) display_current_span: bool,
     pub(crate) display_span_list: bool,
+
+    pub(crate) schema: BTreeMap<&'static str, JsonValue>,
 }
+
+pub enum JsonValue {
+    Serde(serde_json::Value),
+    Struct(BTreeMap<&'static str, JsonValue>),
+    #[allow(clippy::type_complexity)]
+    Dynamic(Box<dyn Fn(Option<&Extensions<'_>>) -> serde_json::Value + Send + Sync>),
+}
+
 
 impl Default for JsonLayer {
     fn default() -> Self {
@@ -56,6 +66,7 @@ impl Default for JsonLayer {
             make_writer: io::stdout,
             timer: SystemTime,
             log_internal_errors: false,
+            schema: BTreeMap::new(),
 
             display_timestamp: true,
             display_target: true,
@@ -69,15 +80,6 @@ impl Default for JsonLayer {
             display_span_list: true,
         }
     }
-}
-
-pub enum JsonValue {
-    Struct(BTreeMap<&'static str, JsonValue>),
-    Array(Vec<JsonValue>),
-    String(String),
-    Number(f64),
-    Bool(bool),
-    Dynamic(Box<dyn FnMut(Extensions<'_>) -> serde_json::Value>),
 }
 
 impl<S, W, T> Layer<S> for JsonLayer<W, T>
@@ -212,6 +214,7 @@ impl<W, T> JsonLayer<W, T> {
             make_writer,
             timer: self.timer,
             log_internal_errors: self.log_internal_errors,
+            schema: self.schema,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
             display_level: self.display_level,
@@ -290,6 +293,7 @@ impl<W, T> JsonLayer<W, T> {
             make_writer: TestWriter::default(),
             timer: self.timer,
             log_internal_errors: self.log_internal_errors,
+            schema: self.schema,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
             display_level: self.display_level,
@@ -348,6 +352,7 @@ impl<W, T> JsonLayer<W, T> {
             make_writer: f(self.make_writer),
             timer: self.timer,
             log_internal_errors: self.log_internal_errors,
+            schema: self.schema,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
             display_level: self.display_level,
@@ -412,6 +417,7 @@ impl<W, T> JsonLayer<W, T> {
             make_writer: self.make_writer,
             timer,
             log_internal_errors: self.log_internal_errors,
+            schema: self.schema,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
             display_level: self.display_level,
@@ -431,6 +437,7 @@ impl<W, T> JsonLayer<W, T> {
             make_writer: self.make_writer,
             timer: (),
             log_internal_errors: self.log_internal_errors,
+            schema: self.schema,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
             display_level: self.display_level,
