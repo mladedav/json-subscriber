@@ -1,5 +1,6 @@
-use std::{cell::RefCell, collections::BTreeMap, io};
+use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, io};
 
+use tracing::Metadata;
 use tracing_core::{
     span::{Attributes, Id, Record},
     Event, Subscriber,
@@ -17,18 +18,31 @@ use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
 use crate::visitor::JsonVisitor;
 
-#[derive(Default)]
-pub struct FormattedFields {
+#[derive(Default, Debug)]
+pub struct JsonFields {
     pub(crate) fields: BTreeMap<&'static str, serde_json::Value>,
     pub(crate) unformatted_fields: bool,
 }
 
-impl std::fmt::Debug for FormattedFields {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FormattedFields")
-            .field("fields", &self.fields)
-            .field("unformatted_fields", &self.unformatted_fields)
-            .finish()
+impl serde::Serialize for JsonFields {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut serializer = serializer.serialize_map(Some(self.fields.len()))?;
+
+        for (key, value) in &self.fields {
+            serializer.serialize_entry(key, value)?;
+        }
+
+        serializer.end()
+    }
+}
+
+impl JsonFields {
+    pub fn fields(&self) -> &BTreeMap<&'static str, serde_json::Value> {
+        &self.fields
     }
 }
 
@@ -39,46 +53,62 @@ pub struct JsonLayer<W = fn() -> io::Stdout, T = SystemTime> {
     pub(crate) log_internal_errors: bool,
 
     pub(crate) display_timestamp: bool,
-    pub(crate) display_target: bool,
     pub(crate) display_level: bool,
-    pub(crate) display_thread_id: bool,
-    pub(crate) display_thread_name: bool,
-    pub(crate) display_filename: bool,
     pub(crate) display_line_number: bool,
     pub(crate) flatten_event: bool,
-    pub(crate) display_current_span: bool,
     pub(crate) display_span_list: bool,
 
-    pub(crate) schema: BTreeMap<&'static str, JsonValue>,
+    pub(crate) schema: BTreeMap<SchemaKey, JsonValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SchemaKey {
+    Static(Cow<'static, str>),
+    Flatten,
+}
+
+impl From<&'static str> for SchemaKey {
+    fn from(value: &'static str) -> Self {
+        Self::Static(value.into())
+    }
+}
+
+impl From<String> for SchemaKey {
+    fn from(value: String) -> Self {
+        Self::Static(value.into())
+    }
 }
 
 pub enum JsonValue {
     Serde(serde_json::Value),
     Struct(BTreeMap<&'static str, JsonValue>),
+    Array(Vec<JsonValue>),
     #[allow(clippy::type_complexity)]
-    Dynamic(Box<dyn Fn(Option<&Extensions<'_>>) -> serde_json::Value + Send + Sync>),
+    Dynamic(
+        Box<
+            dyn Fn(&Metadata<'static>, Option<&Extensions<'_>>) -> Option<serde_json::Value>
+                + Send
+                + Sync,
+        >,
+    ),
 }
-
 
 impl Default for JsonLayer {
     fn default() -> Self {
-        Self {
+        let this = Self {
             make_writer: io::stdout,
             timer: SystemTime,
             log_internal_errors: false,
             schema: BTreeMap::new(),
 
             display_timestamp: true,
-            display_target: true,
             display_level: true,
-            display_thread_id: false,
-            display_thread_name: false,
-            display_filename: false,
             display_line_number: false,
             flatten_event: false,
-            display_current_span: true,
             display_span_list: true,
-        }
+        };
+
+        this.with_target(true).with_current_span(true)
     }
 }
 
@@ -98,10 +128,13 @@ where
 
         let mut extensions = span.extensions_mut();
 
-        if extensions.get_mut::<FormattedFields>().is_none() {
-            let mut fields = FormattedFields::default();
+        if extensions.get_mut::<JsonFields>().is_none() {
+            let mut fields = JsonFields::default();
             let mut visitor = JsonVisitor::new(&mut fields);
             attrs.record(&mut visitor);
+            fields
+                .fields
+                .insert("name", serde_json::Value::from(attrs.metadata().name()));
             extensions.insert(fields);
         } else if self.log_internal_errors {
             eprintln!(
@@ -120,7 +153,7 @@ where
         };
 
         let mut extensions = span.extensions_mut();
-        let Some(fields) = extensions.get_mut::<FormattedFields>() else {
+        let Some(fields) = extensions.get_mut::<JsonFields>() else {
             if self.log_internal_errors {
                 eprintln!("[tracing-json] Span was created but does not contain formatted fields, this is a bug and some fields may have been lost.");
             }
@@ -216,14 +249,9 @@ impl<W, T> JsonLayer<W, T> {
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
             display_timestamp: self.display_timestamp,
-            display_target: self.display_target,
             display_level: self.display_level,
-            display_thread_id: self.display_thread_id,
-            display_thread_name: self.display_thread_name,
-            display_filename: self.display_filename,
             display_line_number: self.display_line_number,
             flatten_event: self.flatten_event,
-            display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
         }
     }
@@ -295,14 +323,9 @@ impl<W, T> JsonLayer<W, T> {
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
             display_timestamp: self.display_timestamp,
-            display_target: self.display_target,
             display_level: self.display_level,
-            display_thread_id: self.display_thread_id,
-            display_thread_name: self.display_thread_name,
-            display_filename: self.display_filename,
             display_line_number: self.display_line_number,
             flatten_event: self.flatten_event,
-            display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
         }
     }
@@ -354,14 +377,9 @@ impl<W, T> JsonLayer<W, T> {
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
             display_timestamp: self.display_timestamp,
-            display_target: self.display_target,
             display_level: self.display_level,
-            display_thread_id: self.display_thread_id,
-            display_thread_name: self.display_thread_name,
-            display_filename: self.display_filename,
             display_line_number: self.display_line_number,
             flatten_event: self.flatten_event,
-            display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
         }
     }
@@ -380,11 +398,20 @@ impl<W, T> JsonLayer<W, T> {
     /// formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_current_span(self, display_current_span: bool) -> JsonLayer<W, T> {
-        JsonLayer {
-            display_current_span,
-            ..self
+    pub fn with_current_span(mut self, display_current_span: bool) -> JsonLayer<W, T> {
+        if display_current_span {
+            self.schema.insert(
+                SchemaKey::from("span"),
+                JsonValue::Dynamic(Box::new(|_, extensions| {
+                    extensions
+                        .and_then(|extensions| extensions.get::<JsonFields>())
+                        .and_then(|fields| serde_json::to_value(fields).ok())
+                })),
+            );
+        } else {
+            self.schema.remove(&SchemaKey::from("span"));
         }
+        self
     }
 
     /// Sets whether or not the formatter will include a list (from root to leaf)
@@ -419,14 +446,9 @@ impl<W, T> JsonLayer<W, T> {
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
             display_timestamp: self.display_timestamp,
-            display_target: self.display_target,
             display_level: self.display_level,
-            display_thread_id: self.display_thread_id,
-            display_thread_name: self.display_thread_name,
-            display_filename: self.display_filename,
             display_line_number: self.display_line_number,
             flatten_event: self.flatten_event,
-            display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
         }
     }
@@ -439,14 +461,9 @@ impl<W, T> JsonLayer<W, T> {
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
             display_timestamp: self.display_timestamp,
-            display_target: self.display_target,
             display_level: self.display_level,
-            display_thread_id: self.display_thread_id,
-            display_thread_name: self.display_thread_name,
-            display_filename: self.display_filename,
             display_line_number: self.display_line_number,
             flatten_event: self.flatten_event,
-            display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
         }
     }
@@ -500,22 +517,35 @@ impl<W, T> JsonLayer<W, T> {
     // }
 
     /// Sets whether or not an event's target is displayed.
-    pub fn with_target(self, display_target: bool) -> JsonLayer<W, T> {
-        JsonLayer {
-            display_target,
-            ..self
+    pub fn with_target(mut self, display_target: bool) -> JsonLayer<W, T> {
+        if display_target {
+            self.schema.insert(
+                SchemaKey::from("target"),
+                JsonValue::Dynamic(Box::new(|meta, _| {
+                    Some(serde_json::Value::String(meta.target().to_owned()))
+                })),
+            );
+        } else {
+            self.schema.remove(&SchemaKey::from("target"));
         }
+
+        self
     }
 
     /// Sets whether or not an event's [source code file path][file] is
     /// displayed.
     ///
     /// [file]: tracing_core::Metadata::file
-    pub fn with_file(self, display_filename: bool) -> JsonLayer<W, T> {
-        JsonLayer {
-            display_filename,
-            ..self
+    pub fn with_file(mut self, display_filename: bool) -> JsonLayer<W, T> {
+        if display_filename {
+            self.schema.insert(
+                SchemaKey::from("filename"),
+                JsonValue::Dynamic(Box::new(|meta, _| meta.file().map(Into::into))),
+            );
+        } else {
+            self.schema.remove(&SchemaKey::from("filename"));
         }
+        self
     }
 
     /// Sets whether or not an event's [source code line number][line] is
@@ -541,22 +571,41 @@ impl<W, T> JsonLayer<W, T> {
     /// when formatting events.
     ///
     /// [name]: std::thread#naming-threads
-    pub fn with_thread_names(self, display_thread_name: bool) -> JsonLayer<W, T> {
-        JsonLayer {
-            display_thread_name,
-            ..self
+    pub fn with_thread_names(mut self, display_thread_name: bool) -> JsonLayer<W, T> {
+        if display_thread_name {
+            self.schema.insert(
+                SchemaKey::from("threadName"),
+                JsonValue::Serde(
+                    std::thread::current()
+                        .name()
+                        .map(ToOwned::to_owned)
+                        .map(serde_json::Value::String)
+                        .unwrap_or(serde_json::Value::Null),
+                ),
+            );
+        } else {
+            self.schema.remove(&SchemaKey::from("threadName"));
         }
+        self
     }
 
     /// Sets whether or not the [thread ID] of the current thread is displayed
     /// when formatting events.
     ///
     /// [thread ID]: std::thread::ThreadId
-    pub fn with_thread_ids(self, display_thread_id: bool) -> JsonLayer<W, T> {
-        JsonLayer {
-            display_thread_id,
-            ..self
+    pub fn with_thread_ids(mut self, display_thread_id: bool) -> JsonLayer<W, T> {
+        if display_thread_id {
+            self.schema.insert(
+                SchemaKey::from("threadId"),
+                JsonValue::Serde(serde_json::Value::String(format!(
+                    "{:?}",
+                    std::thread::current().id()
+                ))),
+            );
+        } else {
+            self.schema.remove(&SchemaKey::from("threadId"));
         }
+        self
     }
 }
 

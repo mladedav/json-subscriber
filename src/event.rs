@@ -1,10 +1,12 @@
 use crate::layer::JsonValue;
+use crate::layer::SchemaKey;
 use crate::serde::SerializableContext;
 use crate::serde::SerializableSpan;
 use crate::{layer::JsonLayer, write_adaptor::WriteAdaptor};
 use serde::ser::SerializeMap;
 use serde::Serializer as _;
 use std::fmt;
+use tracing::Metadata;
 use tracing_serde::AsSerde;
 use tracing_subscriber::registry::Extensions;
 use tracing_subscriber::registry::SpanRef;
@@ -69,27 +71,9 @@ impl<W, T> JsonLayer<W, T> {
                 serializer.serialize_entry("fields", &event.field_map())?;
             };
 
-            if self.display_target {
-                serializer.serialize_entry("target", meta.target())?;
-            }
-
-            if self.display_filename {
-                if let Some(filename) = meta.file() {
-                    serializer.serialize_entry("filename", filename)?;
-                }
-            }
-
             if self.display_line_number {
                 if let Some(line_number) = meta.line() {
                     serializer.serialize_entry("line_number", &line_number)?;
-                }
-            }
-
-            if self.display_current_span {
-                if let Some(ref span) = current_span {
-                    serializer
-                        .serialize_entry("span", &SerializableSpan(span))
-                        .unwrap_or(());
                 }
             }
 
@@ -99,31 +83,24 @@ impl<W, T> JsonLayer<W, T> {
                 }
             }
 
-            if self.display_thread_name {
-                let current_thread = std::thread::current();
-                match current_thread.name() {
-                    Some(name) => {
-                        serializer.serialize_entry("threadName", name)?;
-                    }
-                    // fall-back to thread id when name is absent and ids are not enabled
-                    None if !self.display_thread_id => {
-                        serializer
-                            .serialize_entry("threadName", &format!("{:?}", current_thread.id()))?;
-                    }
-                    _ => {}
-                }
-            }
-
             let extensions = current_span.as_ref().map(SpanRef::extensions);
 
             for (key, value) in &self.schema {
-                let value = resolve_json_value(value, extensions.as_ref());
-                serializer.serialize_entry(key, &value)?;
-            }
-
-            if self.display_thread_id {
-                serializer
-                    .serialize_entry("threadId", &format!("{:?}", std::thread::current().id()))?;
+                let Some(value) = resolve_json_value(value, event.metadata(), extensions.as_ref())
+                else {
+                    continue;
+                };
+                match key {
+                    SchemaKey::Static(key) => {
+                        serializer.serialize_entry(key, &value)?;
+                    }
+                    SchemaKey::Flatten => {
+                        let map = value.as_object().unwrap();
+                        for (key, value) in map {
+                            serializer.serialize_entry(key, value)?;
+                        }
+                    }
+                }
             }
 
             serializer.end()
@@ -134,13 +111,27 @@ impl<W, T> JsonLayer<W, T> {
     }
 }
 
-fn resolve_json_value(value: &JsonValue, extensions: Option<&Extensions<'_>>) -> serde_json::Value {
+fn resolve_json_value(
+    value: &JsonValue,
+    metadata: &Metadata<'static>,
+    extensions: Option<&Extensions<'_>>,
+) -> Option<serde_json::Value> {
     match value {
-        JsonValue::Serde(value) => value.to_owned(),
-        JsonValue::Struct(map) => serde_json::Value::Object(serde_json::Map::from_iter(
-            map.iter()
-                .map(|(key, value)| (key.to_string(), resolve_json_value(value, extensions))),
+        JsonValue::Serde(value) => Some(value.to_owned()),
+        JsonValue::Struct(map) => Some(serde_json::Value::Object(serde_json::Map::from_iter(
+            map.iter().filter_map(|(key, value)| {
+                Some((
+                    key.to_string(),
+                    resolve_json_value(value, metadata, extensions)?,
+                ))
+            }),
+        ))),
+        JsonValue::Array(array) => Some(serde_json::Value::Array(
+            array
+                .iter()
+                .filter_map(|value| resolve_json_value(value, metadata, extensions))
+                .collect(),
         )),
-        JsonValue::Dynamic(fun) => fun(extensions),
+        JsonValue::Dynamic(fun) => fun(metadata, extensions),
     }
 }

@@ -20,7 +20,7 @@ use tracing_subscriber::{
 #[cfg(feature = "tracing-log")]
 use tracing_log::NormalizeEvent;
 
-use crate::layer::FormattedFields;
+use crate::layer::JsonFields;
 
 pub struct Json {
     pub(crate) flatten_event: bool,
@@ -42,10 +42,10 @@ impl Default for Json {
 ///
 /// [visitor]: tracing_subscriber::field::Visit
 /// [`MakeVisitor`]: tracing_subscriber::field::MakeVisitor
-pub(crate) struct JsonVisitor<'a>(&'a mut FormattedFields);
+pub(crate) struct JsonVisitor<'a>(&'a mut JsonFields);
 
 impl<'a> JsonVisitor<'a> {
-    pub fn new(fields: &'a mut FormattedFields) -> Self {
+    pub fn new(fields: &'a mut JsonFields) -> Self {
         Self(fields)
     }
 }

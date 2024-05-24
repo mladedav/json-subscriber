@@ -1,7 +1,7 @@
 use serde::ser::SerializeMap;
 use tracing_core::Subscriber;
 
-use crate::layer::FormattedFields;
+use crate::layer::JsonFields;
 
 pub(crate) struct SerializableContext<'a, 'b, Span>(
     pub(crate) &'b tracing_subscriber::registry::SpanRef<'a, Span>,
@@ -45,9 +45,9 @@ where
         let mut serializer = serializer.serialize_map(None)?;
 
         let ext = self.0.extensions();
-        let fields = ext
-            .get::<FormattedFields>()
-            .expect("Unable to find FormattedFields in extensions; this is a bug");
+        let Some(fields) = ext.get::<JsonFields>() else {
+            return serializer.end();
+        };
 
         for field in &fields.fields {
             serializer.serialize_entry(&field.0, &field.1)?;
