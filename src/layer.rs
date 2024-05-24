@@ -13,11 +13,12 @@ use tracing_subscriber::{
         MakeWriter, TestWriter,
     },
     layer::SubscriberExt,
-    registry::Extensions,
+    registry::{Extensions, SpanRef},
+    Registry,
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::visitor::JsonVisitor;
+use crate::{event::EventRef, visitor::JsonVisitor};
 
 #[derive(Default, Debug)]
 pub struct JsonFields {
@@ -47,7 +48,7 @@ impl JsonFields {
     }
 }
 
-pub struct JsonLayer<W = fn() -> io::Stdout, T = SystemTime> {
+pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout, T = SystemTime> {
     pub(crate) make_writer: W,
     pub(crate) timer: T,
 
@@ -58,7 +59,7 @@ pub struct JsonLayer<W = fn() -> io::Stdout, T = SystemTime> {
     pub(crate) display_line_number: bool,
     pub(crate) display_span_list: bool,
 
-    pub(crate) schema: BTreeMap<SchemaKey, JsonValue>,
+    pub(crate) schema: BTreeMap<SchemaKey, JsonValue<S>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -80,17 +81,18 @@ impl From<String> for SchemaKey {
     }
 }
 
-pub enum JsonValue {
+pub enum JsonValue<S> {
     Serde(serde_json::Value),
-    Struct(BTreeMap<&'static str, JsonValue>),
-    Array(Vec<JsonValue>),
+    Struct(BTreeMap<&'static str, JsonValue<S>>),
+    Array(Vec<JsonValue<S>>),
     #[allow(clippy::type_complexity)]
-    Dynamic(
-        Box<dyn Fn(&Event<'_>, Option<&Extensions<'_>>) -> Option<serde_json::Value> + Send + Sync>,
-    ),
+    Dynamic(Box<dyn Fn(&EventRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>),
 }
 
-impl Default for JsonLayer {
+impl<S> Default for JsonLayer<S>
+where
+    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
+{
     fn default() -> Self {
         let this = Self {
             make_writer: io::stdout,
@@ -110,7 +112,7 @@ impl Default for JsonLayer {
     }
 }
 
-impl<S, W, T> Layer<S> for JsonLayer<W, T>
+impl<S, W, T> Layer<S> for JsonLayer<S, W, T>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
     W: for<'writer> MakeWriter<'writer> + 'static,
@@ -207,7 +209,7 @@ where
     }
 }
 
-impl<W, T> JsonLayer<W, T>
+impl<W, T> JsonLayer<Registry, W, T>
 where
     W: for<'a> MakeWriter<'a> + 'static,
     T: FormatTime + 'static,
@@ -217,7 +219,10 @@ where
     }
 }
 
-impl<W, T> JsonLayer<W, T> {
+impl<S, W, T> JsonLayer<S, W, T>
+where
+    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
+{
     /// Sets the [`MakeWriter`] that the [`JsonLayer`] being built will use to write events.
     ///
     /// # Examples
@@ -237,7 +242,7 @@ impl<W, T> JsonLayer<W, T> {
     ///
     /// [`MakeWriter`]: super::writer::MakeWriter
     /// [`JsonLayer`]: super::JsonLayer
-    pub fn with_writer<W2>(self, make_writer: W2) -> JsonLayer<W2, T>
+    pub fn with_writer<W2>(self, make_writer: W2) -> JsonLayer<S, W2, T>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
@@ -278,7 +283,7 @@ impl<W, T> JsonLayer<W, T> {
     /// let (subscriber, reload_handle) = reload::JsonLayer::new(subscriber);
     /// #
     /// # // specifying the Registry type is required
-    /// # let _: &reload::Handle<fmt::JsonLayer<W, T> = &reload_handle;
+    /// # let _: &reload::Handle<fmt::JsonLayer<S, W, T> = &reload_handle;
     /// #
     /// info!("This will be logged to stderr");
     /// reload_handle.modify(|subscriber| *subscriber.writer_mut() = non_blocking(std::io::stdout()));
@@ -313,7 +318,7 @@ impl<W, T> JsonLayer<W, T> {
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
     /// [`TestWriter`]: super::writer::TestWriter
-    pub fn with_test_writer(self) -> JsonLayer<TestWriter, T> {
+    pub fn with_test_writer(self) -> JsonLayer<S, TestWriter, T> {
         JsonLayer {
             make_writer: TestWriter::default(),
             timer: self.timer,
@@ -363,7 +368,7 @@ impl<W, T> JsonLayer<W, T> {
     /// # use tracing_subscriber::Subscribe as _;
     /// # let _ = subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
-    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> JsonLayer<W2, T>
+    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> JsonLayer<S, W2, T>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
@@ -382,8 +387,8 @@ impl<W, T> JsonLayer<W, T> {
     /// Sets the JSON subscriber being built to flatten event metadata.
     ///
     /// See [`format::Json`]
-    pub fn flatten_event(mut self, flatten_event: bool) -> JsonLayer<W, T> {
-        let fields = JsonValue::Dynamic(Box::new(|event, _| {
+    pub fn flatten_event(mut self, flatten_event: bool) -> JsonLayer<S, W, T> {
+        let fields = JsonValue::Dynamic(Box::new(|event| {
             serde_json::to_value(event.field_map()).ok()
         }));
         if flatten_event {
@@ -400,14 +405,20 @@ impl<W, T> JsonLayer<W, T> {
     /// formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_current_span(mut self, display_current_span: bool) -> JsonLayer<W, T> {
+    pub fn with_current_span(mut self, display_current_span: bool) -> JsonLayer<S, W, T> {
         if display_current_span {
             self.schema.insert(
                 SchemaKey::from("span"),
-                JsonValue::Dynamic(Box::new(|_, extensions| {
-                    extensions
-                        .and_then(|extensions| extensions.get::<JsonFields>())
-                        .and_then(|fields| serde_json::to_value(fields).ok())
+                JsonValue::Dynamic(Box::new(|event| {
+                    event
+                        .parent_span()
+                        .as_ref()
+                        .map(SpanRef::extensions)
+                        .and_then(|extensions| {
+                            extensions
+                                .get::<JsonFields>()
+                                .and_then(|fields| serde_json::to_value(fields).ok())
+                        })
                 })),
             );
         } else {
@@ -420,7 +431,7 @@ impl<W, T> JsonLayer<W, T> {
     /// of all currently entered spans in formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_span_list(self, display_span_list: bool) -> JsonLayer<W, T> {
+    pub fn with_span_list(self, display_span_list: bool) -> JsonLayer<S, W, T> {
         JsonLayer {
             display_span_list,
             ..self
@@ -441,7 +452,7 @@ impl<W, T> JsonLayer<W, T> {
     /// [`UtcTime`]: time::UtcTime
     /// [`LocalTime`]: time::LocalTime
     /// [`time` crate]: https://docs.rs/time/0.3
-    pub fn with_timer<T2>(self, timer: T2) -> JsonLayer<W, T2> {
+    pub fn with_timer<T2>(self, timer: T2) -> JsonLayer<S, W, T2> {
         JsonLayer {
             make_writer: self.make_writer,
             timer,
@@ -455,7 +466,7 @@ impl<W, T> JsonLayer<W, T> {
     }
 
     /// Do not emit timestamps with log messages.
-    pub fn without_time(self) -> JsonLayer<W, ()> {
+    pub fn without_time(self) -> JsonLayer<S, W, ()> {
         JsonLayer {
             make_writer: self.make_writer,
             timer: (),
@@ -517,11 +528,11 @@ impl<W, T> JsonLayer<W, T> {
     // }
 
     /// Sets whether or not an event's target is displayed.
-    pub fn with_target(mut self, display_target: bool) -> JsonLayer<W, T> {
+    pub fn with_target(mut self, display_target: bool) -> JsonLayer<S, W, T> {
         if display_target {
             self.schema.insert(
                 SchemaKey::from("target"),
-                JsonValue::Dynamic(Box::new(|event, _| {
+                JsonValue::Dynamic(Box::new(|event| {
                     Some(serde_json::Value::String(
                         event.metadata().target().to_owned(),
                     ))
@@ -538,11 +549,11 @@ impl<W, T> JsonLayer<W, T> {
     /// displayed.
     ///
     /// [file]: tracing_core::Metadata::file
-    pub fn with_file(mut self, display_filename: bool) -> JsonLayer<W, T> {
+    pub fn with_file(mut self, display_filename: bool) -> JsonLayer<S, W, T> {
         if display_filename {
             self.schema.insert(
                 SchemaKey::from("filename"),
-                JsonValue::Dynamic(Box::new(|event, _| event.metadata().file().map(Into::into))),
+                JsonValue::Dynamic(Box::new(|event| event.metadata().file().map(Into::into))),
             );
         } else {
             self.schema.remove(&SchemaKey::from("filename"));
@@ -554,7 +565,7 @@ impl<W, T> JsonLayer<W, T> {
     /// displayed.
     ///
     /// [line]: tracing_core::Metadata::line
-    pub fn with_line_number(self, display_line_number: bool) -> JsonLayer<W, T> {
+    pub fn with_line_number(self, display_line_number: bool) -> JsonLayer<S, W, T> {
         JsonLayer {
             display_line_number,
             ..self
@@ -562,7 +573,7 @@ impl<W, T> JsonLayer<W, T> {
     }
 
     /// Sets whether or not an event's level is displayed.
-    pub fn with_level(self, display_level: bool) -> JsonLayer<W, T> {
+    pub fn with_level(self, display_level: bool) -> JsonLayer<S, W, T> {
         JsonLayer {
             display_level,
             ..self
@@ -573,7 +584,7 @@ impl<W, T> JsonLayer<W, T> {
     /// when formatting events.
     ///
     /// [name]: std::thread#naming-threads
-    pub fn with_thread_names(mut self, display_thread_name: bool) -> JsonLayer<W, T> {
+    pub fn with_thread_names(mut self, display_thread_name: bool) -> JsonLayer<S, W, T> {
         if display_thread_name {
             self.schema.insert(
                 SchemaKey::from("threadName"),
@@ -595,7 +606,7 @@ impl<W, T> JsonLayer<W, T> {
     /// when formatting events.
     ///
     /// [thread ID]: std::thread::ThreadId
-    pub fn with_thread_ids(mut self, display_thread_id: bool) -> JsonLayer<W, T> {
+    pub fn with_thread_ids(mut self, display_thread_id: bool) -> JsonLayer<S, W, T> {
         if display_thread_id {
             self.schema.insert(
                 SchemaKey::from("threadId"),

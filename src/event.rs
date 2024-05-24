@@ -1,14 +1,14 @@
 use crate::layer::JsonValue;
 use crate::layer::SchemaKey;
 use crate::serde::SerializableContext;
-use crate::serde::SerializableSpan;
 use crate::{layer::JsonLayer, write_adaptor::WriteAdaptor};
 use serde::ser::SerializeMap;
 use serde::Serializer as _;
 use std::fmt;
+use std::ops::Deref;
+use tracing::field::FieldSet;
 use tracing::Metadata;
 use tracing_serde::AsSerde;
-use tracing_subscriber::registry::Extensions;
 use tracing_subscriber::registry::SpanRef;
 
 use tracing::{Event, Subscriber};
@@ -18,15 +18,44 @@ use tracing_subscriber::{
     registry::LookupSpan,
 };
 
-impl<W, T> JsonLayer<W, T> {
-    pub(crate) fn format_event<S>(
+/// The same thing as [`SpanRef`] but for events.
+pub struct EventRef<'a, R> {
+    context: &'a Context<'a, R>,
+    event: &'a Event<'a>,
+}
+
+impl<'a, R> Deref for EventRef<'a, R> {
+    type Target = Event<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.event
+    }
+}
+
+impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
+    /// Returns the span's name,
+    pub fn name(&self) -> &'static str {
+        self.event.metadata().name()
+    }
+
+    /// Returns a `SpanRef` describing this span's parent, or `None` if this
+    /// span is the root of its trace tree.
+    pub fn parent_span(&self) -> Option<SpanRef<'a, R>> {
+        self.context.event_span(&self.event)
+    }
+}
+
+impl<S, W, T> JsonLayer<S, W, T>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    pub(crate) fn format_event(
         &self,
         ctx: Context<'_, S>,
         mut writer: Writer<'_>,
         event: &Event<'_>,
     ) -> fmt::Result
     where
-        S: Subscriber + for<'a> LookupSpan<'a>,
         T: FormatTime,
     {
         let mut timestamp = String::new();
@@ -73,11 +102,13 @@ impl<W, T> JsonLayer<W, T> {
                 }
             }
 
-            let extensions = current_span.as_ref().map(SpanRef::extensions);
+            let event_ref = EventRef {
+                context: &ctx,
+                event: &event,
+            };
 
             for (key, value) in &self.schema {
-                let Some(value) = resolve_json_value(value, event, extensions.as_ref())
-                else {
+                let Some(value) = resolve_json_value(value, &event_ref) else {
                     continue;
                 };
                 match key {
@@ -101,27 +132,23 @@ impl<W, T> JsonLayer<W, T> {
     }
 }
 
-fn resolve_json_value(
-    value: &JsonValue,
-    event: &Event<'_>,
-    extensions: Option<&Extensions<'_>>,
+fn resolve_json_value<S: for<'lookup> LookupSpan<'lookup>>(
+    value: &JsonValue<S>,
+    event: &EventRef<'_, S>,
 ) -> Option<serde_json::Value> {
     match value {
         JsonValue::Serde(value) => Some(value.to_owned()),
         JsonValue::Struct(map) => Some(serde_json::Value::Object(serde_json::Map::from_iter(
             map.iter().filter_map(|(key, value)| {
-                Some((
-                    key.to_string(),
-                    resolve_json_value(value, event, extensions)?,
-                ))
+                Some((key.to_string(), resolve_json_value(value, event)?))
             }),
         ))),
         JsonValue::Array(array) => Some(serde_json::Value::Array(
             array
                 .iter()
-                .filter_map(|value| resolve_json_value(value, event, extensions))
+                .filter_map(|value| resolve_json_value(value, event))
                 .collect(),
         )),
-        JsonValue::Dynamic(fun) => fun(event, extensions),
+        JsonValue::Dynamic(fun) => fun(event),
     }
 }
