@@ -5,6 +5,7 @@ use tracing_core::{
     span::{Attributes, Id, Record},
     Event, Subscriber,
 };
+use tracing_serde::fields::AsMap;
 use tracing_subscriber::{
     fmt::{
         format,
@@ -55,7 +56,6 @@ pub struct JsonLayer<W = fn() -> io::Stdout, T = SystemTime> {
     pub(crate) display_timestamp: bool,
     pub(crate) display_level: bool,
     pub(crate) display_line_number: bool,
-    pub(crate) flatten_event: bool,
     pub(crate) display_span_list: bool,
 
     pub(crate) schema: BTreeMap<SchemaKey, JsonValue>,
@@ -64,6 +64,7 @@ pub struct JsonLayer<W = fn() -> io::Stdout, T = SystemTime> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SchemaKey {
     Static(Cow<'static, str>),
+    // TODO this doesn't work because we'd have just a single flatten field
     Flatten,
 }
 
@@ -85,11 +86,7 @@ pub enum JsonValue {
     Array(Vec<JsonValue>),
     #[allow(clippy::type_complexity)]
     Dynamic(
-        Box<
-            dyn Fn(&Metadata<'static>, Option<&Extensions<'_>>) -> Option<serde_json::Value>
-                + Send
-                + Sync,
-        >,
+        Box<dyn Fn(&Event<'_>, Option<&Extensions<'_>>) -> Option<serde_json::Value> + Send + Sync>,
     ),
 }
 
@@ -104,11 +101,12 @@ impl Default for JsonLayer {
             display_timestamp: true,
             display_level: true,
             display_line_number: false,
-            flatten_event: false,
             display_span_list: true,
         };
 
-        this.with_target(true).with_current_span(true)
+        this.with_target(true)
+            .with_current_span(true)
+            .flatten_event(false)
     }
 }
 
@@ -251,7 +249,6 @@ impl<W, T> JsonLayer<W, T> {
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            flatten_event: self.flatten_event,
             display_span_list: self.display_span_list,
         }
     }
@@ -325,7 +322,6 @@ impl<W, T> JsonLayer<W, T> {
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            flatten_event: self.flatten_event,
             display_span_list: self.display_span_list,
         }
     }
@@ -379,7 +375,6 @@ impl<W, T> JsonLayer<W, T> {
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            flatten_event: self.flatten_event,
             display_span_list: self.display_span_list,
         }
     }
@@ -387,11 +382,18 @@ impl<W, T> JsonLayer<W, T> {
     /// Sets the JSON subscriber being built to flatten event metadata.
     ///
     /// See [`format::Json`]
-    pub fn flatten_event(self, flatten_event: bool) -> JsonLayer<W, T> {
-        JsonLayer {
-            flatten_event,
-            ..self
+    pub fn flatten_event(mut self, flatten_event: bool) -> JsonLayer<W, T> {
+        let fields = JsonValue::Dynamic(Box::new(|event, _| {
+            serde_json::to_value(event.field_map()).ok()
+        }));
+        if flatten_event {
+            self.schema.insert(SchemaKey::Flatten, fields);
+            self.schema.remove(&SchemaKey::from("fields"));
+        } else {
+            self.schema.insert(SchemaKey::from("fields"), fields);
+            self.schema.remove(&SchemaKey::Flatten);
         }
+        self
     }
 
     /// Sets whether or not the formatter will include the current span in
@@ -448,7 +450,6 @@ impl<W, T> JsonLayer<W, T> {
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            flatten_event: self.flatten_event,
             display_span_list: self.display_span_list,
         }
     }
@@ -463,7 +464,6 @@ impl<W, T> JsonLayer<W, T> {
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            flatten_event: self.flatten_event,
             display_span_list: self.display_span_list,
         }
     }
@@ -521,8 +521,10 @@ impl<W, T> JsonLayer<W, T> {
         if display_target {
             self.schema.insert(
                 SchemaKey::from("target"),
-                JsonValue::Dynamic(Box::new(|meta, _| {
-                    Some(serde_json::Value::String(meta.target().to_owned()))
+                JsonValue::Dynamic(Box::new(|event, _| {
+                    Some(serde_json::Value::String(
+                        event.metadata().target().to_owned(),
+                    ))
                 })),
             );
         } else {
@@ -540,7 +542,7 @@ impl<W, T> JsonLayer<W, T> {
         if display_filename {
             self.schema.insert(
                 SchemaKey::from("filename"),
-                JsonValue::Dynamic(Box::new(|meta, _| meta.file().map(Into::into))),
+                JsonValue::Dynamic(Box::new(|event, _| event.metadata().file().map(Into::into))),
             );
         } else {
             self.schema.remove(&SchemaKey::from("filename"));

@@ -61,16 +61,6 @@ impl<W, T> JsonLayer<W, T> {
                 None
             };
 
-            if self.flatten_event {
-                let mut visitor = tracing_serde::SerdeMapVisitor::new(serializer);
-                event.record(&mut visitor);
-
-                serializer = visitor.take_serializer()?;
-            } else {
-                use tracing_serde::fields::AsMap;
-                serializer.serialize_entry("fields", &event.field_map())?;
-            };
-
             if self.display_line_number {
                 if let Some(line_number) = meta.line() {
                     serializer.serialize_entry("line_number", &line_number)?;
@@ -86,7 +76,7 @@ impl<W, T> JsonLayer<W, T> {
             let extensions = current_span.as_ref().map(SpanRef::extensions);
 
             for (key, value) in &self.schema {
-                let Some(value) = resolve_json_value(value, event.metadata(), extensions.as_ref())
+                let Some(value) = resolve_json_value(value, event, extensions.as_ref())
                 else {
                     continue;
                 };
@@ -113,7 +103,7 @@ impl<W, T> JsonLayer<W, T> {
 
 fn resolve_json_value(
     value: &JsonValue,
-    metadata: &Metadata<'static>,
+    event: &Event<'_>,
     extensions: Option<&Extensions<'_>>,
 ) -> Option<serde_json::Value> {
     match value {
@@ -122,16 +112,16 @@ fn resolve_json_value(
             map.iter().filter_map(|(key, value)| {
                 Some((
                     key.to_string(),
-                    resolve_json_value(value, metadata, extensions)?,
+                    resolve_json_value(value, event, extensions)?,
                 ))
             }),
         ))),
         JsonValue::Array(array) => Some(serde_json::Value::Array(
             array
                 .iter()
-                .filter_map(|value| resolve_json_value(value, metadata, extensions))
+                .filter_map(|value| resolve_json_value(value, event, extensions))
                 .collect(),
         )),
-        JsonValue::Dynamic(fun) => fun(metadata, extensions),
+        JsonValue::Dynamic(fun) => fun(event, extensions),
     }
 }
