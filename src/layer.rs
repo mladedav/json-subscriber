@@ -1,6 +1,5 @@
 use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, io};
 
-use tracing::Metadata;
 use tracing_core::{
     span::{Attributes, Id, Record},
     Event, Subscriber,
@@ -13,7 +12,7 @@ use tracing_subscriber::{
         MakeWriter, TestWriter,
     },
     layer::SubscriberExt,
-    registry::{Extensions, SpanRef},
+    registry::SpanRef,
     Registry,
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
@@ -57,7 +56,6 @@ pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout, T = SystemTime> {
     pub(crate) display_timestamp: bool,
     pub(crate) display_level: bool,
     pub(crate) display_line_number: bool,
-    pub(crate) display_span_list: bool,
 
     pub(crate) schema: BTreeMap<SchemaKey, JsonValue<S>>,
 }
@@ -103,12 +101,12 @@ where
             display_timestamp: true,
             display_level: true,
             display_line_number: false,
-            display_span_list: true,
         };
 
         this.with_target(true)
             .with_current_span(true)
             .flatten_event(false)
+            .with_span_list(true)
     }
 }
 
@@ -254,7 +252,6 @@ where
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            display_span_list: self.display_span_list,
         }
     }
 
@@ -327,7 +324,6 @@ where
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            display_span_list: self.display_span_list,
         }
     }
 
@@ -380,7 +376,6 @@ where
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            display_span_list: self.display_span_list,
         }
     }
 
@@ -431,11 +426,31 @@ where
     /// of all currently entered spans in formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_span_list(self, display_span_list: bool) -> JsonLayer<S, W, T> {
-        JsonLayer {
-            display_span_list,
-            ..self
+    pub fn with_span_list(mut self, display_span_list: bool) -> JsonLayer<S, W, T> {
+        if display_span_list {
+            self.schema.insert(
+                SchemaKey::from("spans"),
+                JsonValue::Dynamic(Box::new(|event| {
+                    event
+                        .parent_span()
+                        .as_ref()
+                        .map(|span| {
+                            span.scope()
+                                .from_root()
+                                .map(|span| {
+                                    span.extensions()
+                                        .get::<JsonFields>()
+                                        .and_then(|fields| serde_json::to_value(fields).ok())
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .and_then(|array| serde_json::to_value(array).ok())
+                })),
+            );
+        } else {
+            self.schema.remove(&SchemaKey::from("spans"));
         }
+        self
     }
 
     /// Use the given [`timer`] for log message timestamps.
@@ -461,7 +476,6 @@ where
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            display_span_list: self.display_span_list,
         }
     }
 
@@ -475,7 +489,6 @@ where
             display_timestamp: self.display_timestamp,
             display_level: self.display_level,
             display_line_number: self.display_line_number,
-            display_span_list: self.display_span_list,
         }
     }
 
