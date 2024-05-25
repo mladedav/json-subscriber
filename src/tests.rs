@@ -1,4 +1,7 @@
-use std::{io, sync::{Arc, Mutex, MutexGuard, TryLockError}};
+use std::{
+    io,
+    sync::{Arc, Mutex, MutexGuard, TryLockError},
+};
 
 use tracing_subscriber::fmt::MakeWriter;
 
@@ -39,21 +42,8 @@ pub(crate) struct MockMakeWriter {
 }
 
 impl MockMakeWriter {
-    pub(crate) fn new(buf: Arc<Mutex<Vec<u8>>>) -> Self {
-        Self { buf }
-    }
-
     pub(crate) fn buf(&self) -> MutexGuard<'_, Vec<u8>> {
         self.buf.lock().unwrap()
-    }
-
-    pub(crate) fn get_string(&self) -> String {
-        let mut buf = self.buf.lock().expect("lock shouldn't be poisoned");
-        let string = std::str::from_utf8(&buf[..])
-            .expect("formatter should not have produced invalid utf-8")
-            .to_owned();
-        buf.clear();
-        string
     }
 }
 

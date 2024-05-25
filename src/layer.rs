@@ -420,7 +420,6 @@ where
         );
     }
 
-
     /// Sets the JSON subscriber being built to flatten event metadata.
     ///
     /// See [`format::Json`]
