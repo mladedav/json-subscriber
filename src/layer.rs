@@ -7,7 +7,7 @@ use tracing_core::{
 use tracing_serde::fields::AsMap;
 use tracing_subscriber::{
     fmt::{
-        format::{self, Writer},
+        format::Writer,
         time::{FormatTime, SystemTime},
         MakeWriter, TestWriter,
     },
@@ -178,7 +178,7 @@ where
                 }
             };
 
-            if self.format_event(ctx, format::Writer::new(&mut buf), event)
+            if self.format_event(ctx, Writer::new(&mut buf), event)
                 .is_ok()
             {
                 let mut writer = self.make_writer.make_writer_for(event.metadata());
@@ -464,54 +464,6 @@ where
         self
     }
 
-    // /// Configures how synthesized events are emitted at points in the [span
-    // /// lifecycle][lifecycle].
-    // ///
-    // /// The following options are available:
-    // ///
-    // /// - `FmtSpan::NONE`: No events will be synthesized when spans are
-    // ///    created, entered, exited, or closed. Data from spans will still be
-    // ///    included as the context for formatted events. This is the default.
-    // /// - `FmtSpan::NEW`: An event will be synthesized when spans are created.
-    // /// - `FmtSpan::ENTER`: An event will be synthesized when spans are entered.
-    // /// - `FmtSpan::EXIT`: An event will be synthesized when spans are exited.
-    // /// - `FmtSpan::CLOSE`: An event will be synthesized when a span closes. If
-    // ///    [timestamps are enabled][time] for this formatter, the generated
-    // ///    event will contain fields with the span's _busy time_ (the total
-    // ///    time for which it was entered) and _idle time_ (the total time that
-    // ///    the span existed but was not entered).
-    // /// - `FmtSpan::ACTIVE`: An event will be synthesized when spans are entered
-    // ///    or exited.
-    // /// - `FmtSpan::FULL`: Events will be synthesized whenever a span is
-    // ///    created, entered, exited, or closed. If timestamps are enabled, the
-    // ///    close event will contain the span's busy and idle time, as
-    // ///    described above.
-    // ///
-    // /// The options can be enabled in any combination. For instance, the following
-    // /// will synthesize events whenever spans are created and closed:
-    // ///
-    // /// ```rust
-    // /// use tracing_subscriber::fmt::format::FmtSpan;
-    // /// use tracing_subscriber::fmt;
-    // ///
-    // /// let subscriber = fmt()
-    // ///     .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
-    // ///     .finish();
-    // /// ```
-    // ///
-    // /// Note that the generated events will only be part of the log output by
-    // /// this formatter; they will not be recorded by other `Collector`s or by
-    // /// `Subscriber`s added to this subscriber.
-    // ///
-    // /// [lifecycle]: mod@tracing::span#the-span-lifecycle
-    // /// [time]: JsonLayer::without_time()
-    // pub fn with_span_events(self, kind: format::FmtSpan) -> Self {
-    //     JsonLayer {
-    //         inner: self.inner.with_span_events(kind),
-    //         ..self
-    //     }
-    // }
-
     /// Sets whether or not an event's target is displayed.
     pub fn with_target(mut self, display_target: bool) -> Self {
         if display_target {
@@ -625,7 +577,7 @@ mod test {
 
     use super::*;
     use tracing_subscriber::fmt::format::Writer;
-    use tracing_subscriber::fmt::{format::FmtSpan, time::FormatTime};
+    use tracing_subscriber::fmt::time::FormatTime;
 
     use tracing::subscriber::with_default;
 
@@ -857,92 +809,6 @@ mod test {
             );
         });
     }
-
-    // #[test]
-    // fn json_span_event_show_correct_context() {
-    //     let buffer = MockMakeWriter::default();
-    //     let subscriber = subscriber()
-    //         .with_writer(buffer.clone())
-    //         .flatten_event(false)
-    //         .with_current_span(true)
-    //         .with_span_list(false)
-    //         .with_span_events(FmtSpan::FULL)
-    //         .finish();
-
-    //     with_default(subscriber, || {
-    //         let context = "parent";
-    //         let parent_span = tracing::info_span!("parent_span", context);
-
-    //         let event = parse_as_json(&buffer);
-    //         assert_eq!(event["fields"]["message"], "new");
-    //         assert_eq!(event["span"]["context"], "parent");
-
-    //         let _parent_enter = parent_span.enter();
-    //         let event = parse_as_json(&buffer);
-    //         assert_eq!(event["fields"]["message"], "enter");
-    //         assert_eq!(event["span"]["context"], "parent");
-
-    //         let context = "child";
-    //         let child_span = tracing::info_span!("child_span", context);
-    //         let event = parse_as_json(&buffer);
-    //         assert_eq!(event["fields"]["message"], "new");
-    //         assert_eq!(event["span"]["context"], "child");
-
-    //         let _child_enter = child_span.enter();
-    //         let event = parse_as_json(&buffer);
-    //         assert_eq!(event["fields"]["message"], "enter");
-    //         assert_eq!(event["span"]["context"], "child");
-
-    //         drop(_child_enter);
-    //         let event = parse_as_json(&buffer);
-    //         assert_eq!(event["fields"]["message"], "exit");
-    //         assert_eq!(event["span"]["context"], "child");
-
-    //         drop(child_span);
-    //         let event = parse_as_json(&buffer);
-    //         assert_eq!(event["fields"]["message"], "close");
-    //         assert_eq!(event["span"]["context"], "child");
-
-    //         drop(_parent_enter);
-    //         let event = parse_as_json(&buffer);
-    //         assert_eq!(event["fields"]["message"], "exit");
-    //         assert_eq!(event["span"]["context"], "parent");
-
-    //         drop(parent_span);
-    //         let event = parse_as_json(&buffer);
-    //         assert_eq!(event["fields"]["message"], "close");
-    //         assert_eq!(event["span"]["context"], "parent");
-    //     });
-    // }
-
-    // #[test]
-    // fn json_span_event_with_no_fields() {
-    //     // Check span events serialize correctly.
-    //     // Discussion: https://github.com/tokio-rs/tracing/issues/829#issuecomment-661984255
-    //     //
-    //     let buffer = MockMakeWriter::default();
-    //     let subscriber = subscriber()
-    //         .with_writer(buffer.clone())
-    //         .flatten_event(false)
-    //         .with_current_span(false)
-    //         .with_span_list(false)
-    //         .with_span_events(FmtSpan::FULL)
-    //         .finish();
-
-    //     with_default(subscriber, || {
-    //         let span = tracing::info_span!("valid_json");
-    //         assert_eq!(parse_as_json(&buffer)["fields"]["message"], "new");
-
-    //         let _enter = span.enter();
-    //         assert_eq!(parse_as_json(&buffer)["fields"]["message"], "enter");
-
-    //         drop(_enter);
-    //         assert_eq!(parse_as_json(&buffer)["fields"]["message"], "exit");
-
-    //         drop(span);
-    //         assert_eq!(parse_as_json(&buffer)["fields"]["message"], "close");
-    //     });
-    // }
 
     fn parse_as_json(buffer: &MockMakeWriter) -> serde_json::Value {
         let buf = String::from_utf8(buffer.buf().to_vec()).unwrap();
