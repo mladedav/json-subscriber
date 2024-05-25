@@ -1,5 +1,6 @@
 use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, io};
 
+use serde::Serialize;
 use tracing_core::{
     span::{Attributes, Id, Record},
     Event, Subscriber,
@@ -12,7 +13,6 @@ use tracing_subscriber::{
         MakeWriter, TestWriter,
     },
     layer::SubscriberExt,
-    registry::SpanRef,
     Registry,
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
@@ -60,6 +60,12 @@ pub enum SchemaKey {
     Static(Cow<'static, str>),
     // TODO this doesn't work because we'd have just a single flatten field
     Flatten,
+}
+
+impl From<Cow<'static, str>> for SchemaKey {
+    fn from(value: Cow<'static, str>) -> Self {
+        Self::Static(value)
+    }
 }
 
 impl From<&'static str> for SchemaKey {
@@ -357,6 +363,64 @@ where
         }
     }
 
+    pub fn add_object(&mut self, key: impl Into<Cow<'static, str>>, value: JsonValue<S>) {
+        self.schema.insert(SchemaKey::from(key.into()), value);
+    }
+
+    pub fn serialize_extension<Ext: Serialize + 'static>(
+        &mut self,
+        key: impl Into<Cow<'static, str>>,
+    ) {
+        self.add_from_extension_ref(key, |extension: &Ext| Some(extension))
+    }
+
+    pub fn add_from_extension_ref<Ext, Fun, Res>(
+        &mut self,
+        key: impl Into<Cow<'static, str>>,
+        mapper: Fun,
+    ) where
+        Ext: 'static,
+        for<'a> Fun: Fn(&'a Ext) -> Option<&'a Res> + Send + Sync + 'a,
+        Res: serde::Serialize,
+    {
+        self.schema.insert(
+            SchemaKey::from(key.into()),
+            JsonValue::Dynamic(Box::new(move |event| {
+                event.parent_span().and_then(|span| {
+                    span.extensions()
+                        .get::<Ext>()
+                        .and_then(&mapper)
+                        .map(serde_json::to_value)
+                        .and_then(Result::ok)
+                })
+            })),
+        );
+    }
+
+    pub fn add_from_extension<Ext, Fun, Res>(
+        &mut self,
+        key: impl Into<Cow<'static, str>>,
+        mapper: Fun,
+    ) where
+        Ext: 'static,
+        for<'a> Fun: Fn(&'a Ext) -> Option<Res> + Send + Sync + 'a,
+        Res: serde::Serialize,
+    {
+        self.schema.insert(
+            SchemaKey::from(key.into()),
+            JsonValue::Dynamic(Box::new(move |event| {
+                event.parent_span().and_then(|span| {
+                    span.extensions()
+                        .get::<Ext>()
+                        .and_then(&mapper)
+                        .map(serde_json::to_value)
+                        .and_then(Result::ok)
+                })
+            })),
+        );
+    }
+
+
     /// Sets the JSON subscriber being built to flatten event metadata.
     ///
     /// See [`format::Json`]
@@ -380,20 +444,7 @@ where
     /// See [`format::Json`]
     pub fn with_current_span(mut self, display_current_span: bool) -> Self {
         if display_current_span {
-            self.schema.insert(
-                SchemaKey::from("span"),
-                JsonValue::Dynamic(Box::new(|event| {
-                    event
-                        .parent_span()
-                        .as_ref()
-                        .map(SpanRef::extensions)
-                        .and_then(|extensions| {
-                            extensions
-                                .get::<JsonFields>()
-                                .and_then(|fields| serde_json::to_value(fields).ok())
-                        })
-                })),
-            );
+            self.serialize_extension::<JsonFields>("span");
         } else {
             self.schema.remove(&SchemaKey::from("span"));
         }
