@@ -5,15 +5,14 @@ use serde::ser::SerializeMap;
 use serde::Serializer as _;
 use std::fmt;
 use std::ops::Deref;
-use tracing_serde::AsSerde;
+use tracing::Metadata;
 use tracing_subscriber::registry::SpanRef;
 
 use tracing::{Event, Subscriber};
-use tracing_subscriber::{
-    fmt::{format::Writer, time::FormatTime},
-    layer::Context,
-    registry::LookupSpan,
-};
+use tracing_subscriber::{fmt::format::Writer, layer::Context, registry::LookupSpan};
+
+#[cfg(feature = "tracing-log")]
+use tracing_log::NormalizeEvent;
 
 /// The same thing as [`SpanRef`] but for events.
 pub struct EventRef<'a, R> {
@@ -35,6 +34,16 @@ impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
         self.event.metadata().name()
     }
 
+    pub fn metadata(&self) -> &'static Metadata<'static> {
+        #[cfg(feature = "tracing-log")]
+        {
+            let normalized_meta = self.event.normalized_metadata();
+            normalized_meta.as_ref().unwrap_or_else(|| event.metadata())
+        }
+        #[cfg(not(feature = "tracing-log"))]
+        self.event.metadata()
+    }
+
     /// Returns a `SpanRef` describing this span's parent, or `None` if this
     /// span is the root of its trace tree.
     pub fn parent_span(&self) -> Option<SpanRef<'a, R>> {
@@ -42,7 +51,7 @@ impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
     }
 }
 
-impl<S, W, T> JsonLayer<S, W, T>
+impl<S, W> JsonLayer<S, W>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
@@ -51,38 +60,11 @@ where
         ctx: Context<'_, S>,
         mut writer: Writer<'_>,
         event: &Event<'_>,
-    ) -> fmt::Result
-    where
-        T: FormatTime,
-    {
-        let mut timestamp = String::new();
-        self.timer.format_time(&mut Writer::new(&mut timestamp))?;
-
-        #[cfg(feature = "tracing-log")]
-        let normalized_meta = event.normalized_metadata();
-        #[cfg(feature = "tracing-log")]
-        let meta = normalized_meta.as_ref().unwrap_or_else(|| event.metadata());
-        #[cfg(not(feature = "tracing-log"))]
-        let meta = event.metadata();
-
+    ) -> fmt::Result {
         let mut visit = || {
             let mut serializer = serde_json::Serializer::new(WriteAdaptor::new(&mut writer));
 
             let mut serializer = serializer.serialize_map(None)?;
-
-            if self.display_timestamp {
-                serializer.serialize_entry("timestamp", &timestamp)?;
-            }
-
-            if self.display_level {
-                serializer.serialize_entry("level", &meta.level().as_serde())?;
-            }
-
-            if self.display_line_number {
-                if let Some(line_number) = meta.line() {
-                    serializer.serialize_entry("line_number", &line_number)?;
-                }
-            }
 
             let event_ref = EventRef {
                 context: &ctx,

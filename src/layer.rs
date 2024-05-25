@@ -7,7 +7,7 @@ use tracing_core::{
 use tracing_serde::fields::AsMap;
 use tracing_subscriber::{
     fmt::{
-        format,
+        format::{self, Writer},
         time::{FormatTime, SystemTime},
         MakeWriter, TestWriter,
     },
@@ -47,15 +47,10 @@ impl JsonFields {
     }
 }
 
-pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout, T = SystemTime> {
+pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
     pub(crate) make_writer: W,
-    pub(crate) timer: T,
 
     pub(crate) log_internal_errors: bool,
-
-    pub(crate) display_timestamp: bool,
-    pub(crate) display_level: bool,
-    pub(crate) display_line_number: bool,
 
     pub(crate) schema: BTreeMap<SchemaKey, JsonValue<S>>,
 }
@@ -94,27 +89,23 @@ where
     fn default() -> Self {
         let this = Self {
             make_writer: io::stdout,
-            timer: SystemTime,
             log_internal_errors: false,
             schema: BTreeMap::new(),
-
-            display_timestamp: true,
-            display_level: true,
-            display_line_number: false,
         };
 
         this.with_target(true)
+            .with_level(true)
+            .with_timer(SystemTime)
             .with_current_span(true)
             .flatten_event(false)
             .with_span_list(true)
     }
 }
 
-impl<S, W, T> Layer<S> for JsonLayer<S, W, T>
+impl<S, W> Layer<S> for JsonLayer<S, W>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
     W: for<'writer> MakeWriter<'writer> + 'static,
-    T: FormatTime + 'static,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let Some(span) = ctx.span(id) else {
@@ -207,17 +198,16 @@ where
     }
 }
 
-impl<W, T> JsonLayer<Registry, W, T>
+impl<W> JsonLayer<Registry, W>
 where
     W: for<'a> MakeWriter<'a> + 'static,
-    T: FormatTime + 'static,
 {
     pub fn finish(self) -> impl Subscriber + for<'a> LookupSpan<'a> {
         tracing_subscriber::registry().with(self)
     }
 }
 
-impl<S, W, T> JsonLayer<S, W, T>
+impl<S, W> JsonLayer<S, W>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
@@ -240,18 +230,14 @@ where
     ///
     /// [`MakeWriter`]: super::writer::MakeWriter
     /// [`JsonLayer`]: super::JsonLayer
-    pub fn with_writer<W2>(self, make_writer: W2) -> JsonLayer<S, W2, T>
+    pub fn with_writer<W2>(self, make_writer: W2) -> JsonLayer<S, W2>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
         JsonLayer {
             make_writer,
-            timer: self.timer,
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
-            display_timestamp: self.display_timestamp,
-            display_level: self.display_level,
-            display_line_number: self.display_line_number,
         }
     }
 
@@ -315,15 +301,11 @@ where
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
     /// [`TestWriter`]: super::writer::TestWriter
-    pub fn with_test_writer(self) -> JsonLayer<S, TestWriter, T> {
+    pub fn with_test_writer(self) -> JsonLayer<S, TestWriter> {
         JsonLayer {
             make_writer: TestWriter::default(),
-            timer: self.timer,
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
-            display_timestamp: self.display_timestamp,
-            display_level: self.display_level,
-            display_line_number: self.display_line_number,
         }
     }
 
@@ -364,25 +346,21 @@ where
     /// # use tracing_subscriber::Subscribe as _;
     /// # let _ = subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
-    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> JsonLayer<S, W2, T>
+    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> JsonLayer<S, W2>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
         JsonLayer {
             make_writer: f(self.make_writer),
-            timer: self.timer,
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
-            display_timestamp: self.display_timestamp,
-            display_level: self.display_level,
-            display_line_number: self.display_line_number,
         }
     }
 
     /// Sets the JSON subscriber being built to flatten event metadata.
     ///
     /// See [`format::Json`]
-    pub fn flatten_event(mut self, flatten_event: bool) -> JsonLayer<S, W, T> {
+    pub fn flatten_event(mut self, flatten_event: bool) -> Self {
         let fields = JsonValue::Dynamic(Box::new(|event| {
             serde_json::to_value(event.field_map()).ok()
         }));
@@ -400,7 +378,7 @@ where
     /// formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_current_span(mut self, display_current_span: bool) -> JsonLayer<S, W, T> {
+    pub fn with_current_span(mut self, display_current_span: bool) -> Self {
         if display_current_span {
             self.schema.insert(
                 SchemaKey::from("span"),
@@ -426,7 +404,7 @@ where
     /// of all currently entered spans in formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_span_list(mut self, display_span_list: bool) -> JsonLayer<S, W, T> {
+    pub fn with_span_list(mut self, display_span_list: bool) -> Self {
         if display_span_list {
             self.schema.insert(
                 SchemaKey::from("spans"),
@@ -467,29 +445,23 @@ where
     /// [`UtcTime`]: time::UtcTime
     /// [`LocalTime`]: time::LocalTime
     /// [`time` crate]: https://docs.rs/time/0.3
-    pub fn with_timer<T2>(self, timer: T2) -> JsonLayer<S, W, T2> {
-        JsonLayer {
-            make_writer: self.make_writer,
-            timer,
-            log_internal_errors: self.log_internal_errors,
-            schema: self.schema,
-            display_timestamp: self.display_timestamp,
-            display_level: self.display_level,
-            display_line_number: self.display_line_number,
-        }
+    pub fn with_timer<T: FormatTime + Send + Sync + 'static>(mut self, timer: T) -> Self {
+        self.schema.insert(
+            SchemaKey::from("timestamp"),
+            JsonValue::Dynamic(Box::new(move |_| {
+                let mut timestamp = String::new();
+                timer.format_time(&mut Writer::new(&mut timestamp)).ok()?;
+
+                Some(timestamp.into())
+            })),
+        );
+        self
     }
 
     /// Do not emit timestamps with log messages.
-    pub fn without_time(self) -> JsonLayer<S, W, ()> {
-        JsonLayer {
-            make_writer: self.make_writer,
-            timer: (),
-            log_internal_errors: self.log_internal_errors,
-            schema: self.schema,
-            display_timestamp: self.display_timestamp,
-            display_level: self.display_level,
-            display_line_number: self.display_line_number,
-        }
+    pub fn without_time(mut self) -> Self {
+        self.schema.remove(&SchemaKey::from("timestamp"));
+        self
     }
 
     // /// Configures how synthesized events are emitted at points in the [span
@@ -541,7 +513,7 @@ where
     // }
 
     /// Sets whether or not an event's target is displayed.
-    pub fn with_target(mut self, display_target: bool) -> JsonLayer<S, W, T> {
+    pub fn with_target(mut self, display_target: bool) -> Self {
         if display_target {
             self.schema.insert(
                 SchemaKey::from("target"),
@@ -562,7 +534,7 @@ where
     /// displayed.
     ///
     /// [file]: tracing_core::Metadata::file
-    pub fn with_file(mut self, display_filename: bool) -> JsonLayer<S, W, T> {
+    pub fn with_file(mut self, display_filename: bool) -> Self {
         if display_filename {
             self.schema.insert(
                 SchemaKey::from("filename"),
@@ -578,26 +550,38 @@ where
     /// displayed.
     ///
     /// [line]: tracing_core::Metadata::line
-    pub fn with_line_number(self, display_line_number: bool) -> JsonLayer<S, W, T> {
-        JsonLayer {
-            display_line_number,
-            ..self
+    pub fn with_line_number(mut self, display_line_number: bool) -> Self {
+        if display_line_number {
+            self.schema.insert(
+                SchemaKey::from("line_number"),
+                JsonValue::Dynamic(Box::new(|event| event.metadata().line().map(Into::into))),
+            );
+        } else {
+            self.schema.remove(&SchemaKey::from("line_number"));
         }
+        self
     }
 
     /// Sets whether or not an event's level is displayed.
-    pub fn with_level(self, display_level: bool) -> JsonLayer<S, W, T> {
-        JsonLayer {
-            display_level,
-            ..self
+    pub fn with_level(mut self, display_level: bool) -> Self {
+        if display_level {
+            self.schema.insert(
+                SchemaKey::from("level"),
+                JsonValue::Dynamic(Box::new(|event| {
+                    Some(event.metadata().level().as_str().into())
+                })),
+            );
+        } else {
+            self.schema.remove(&SchemaKey::from("level"));
         }
+        self
     }
 
     /// Sets whether or not the [name] of the current thread is displayed
     /// when formatting events.
     ///
     /// [name]: std::thread#naming-threads
-    pub fn with_thread_names(mut self, display_thread_name: bool) -> JsonLayer<S, W, T> {
+    pub fn with_thread_names(mut self, display_thread_name: bool) -> Self {
         if display_thread_name {
             self.schema.insert(
                 SchemaKey::from("threadName"),
@@ -619,7 +603,7 @@ where
     /// when formatting events.
     ///
     /// [thread ID]: std::thread::ThreadId
-    pub fn with_thread_ids(mut self, display_thread_id: bool) -> JsonLayer<S, W, T> {
+    pub fn with_thread_ids(mut self, display_thread_id: bool) -> Self {
         if display_thread_id {
             self.schema.insert(
                 SchemaKey::from("threadId"),
