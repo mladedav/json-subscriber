@@ -305,11 +305,9 @@ where
     /// as a fallback.
     ///
     /// [`FormatEvent`]: crate::fmt::FormatEvent
-    pub fn log_internal_errors(self, log_internal_errors: bool) -> Self {
-        Self {
-            log_internal_errors,
-            ..self
-        }
+    pub fn log_internal_errors(&mut self, log_internal_errors: bool) -> &mut Self {
+        self.log_internal_errors = log_internal_errors;
+        self
     }
 
     /// Updates the [`MakeWriter`] by applying a function to the existing [`MakeWriter`].
@@ -402,7 +400,7 @@ where
     /// Sets the JSON subscriber being built to flatten event metadata.
     ///
     /// See [`format::Json`]
-    pub fn flatten_event(mut self, flatten_event: bool) -> Self {
+    pub fn flatten_event(&mut self, flatten_event: bool) -> &mut Self {
         let fields = JsonValue::Dynamic(Box::new(|event| {
             serde_json::to_value(event.field_map()).ok()
         }));
@@ -420,7 +418,7 @@ where
     /// formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_current_span(mut self, display_current_span: bool) -> Self {
+    pub fn with_current_span(&mut self, display_current_span: bool) -> &mut Self {
         if display_current_span {
             self.serialize_extension::<JsonFields>("span");
         } else {
@@ -433,7 +431,7 @@ where
     /// of all currently entered spans in formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_span_list(mut self, display_span_list: bool) -> Self {
+    pub fn with_span_list(&mut self, display_span_list: bool) -> &mut Self{
         if display_span_list {
             self.schema.insert(
                 SchemaKey::from("spans"),
@@ -474,7 +472,7 @@ where
     /// [`UtcTime`]: time::UtcTime
     /// [`LocalTime`]: time::LocalTime
     /// [`time` crate]: https://docs.rs/time/0.3
-    pub fn with_timer<T: FormatTime + Send + Sync + 'static>(mut self, timer: T) -> Self {
+    pub fn with_timer<T: FormatTime + Send + Sync + 'static>(&mut self, timer: T) -> &mut Self {
         self.schema.insert(
             SchemaKey::from("timestamp"),
             JsonValue::Dynamic(Box::new(move |_| {
@@ -488,13 +486,13 @@ where
     }
 
     /// Do not emit timestamps with log messages.
-    pub fn without_time(mut self) -> Self {
+    pub fn without_time(&mut self) -> &mut Self {
         self.schema.remove(&SchemaKey::from("timestamp"));
         self
     }
 
     /// Sets whether or not an event's target is displayed.
-    pub fn with_target(mut self, display_target: bool) -> Self {
+    pub fn with_target(&mut self, display_target: bool) -> &mut Self {
         if display_target {
             self.schema.insert(
                 SchemaKey::from("target"),
@@ -515,7 +513,7 @@ where
     /// displayed.
     ///
     /// [file]: tracing_core::Metadata::file
-    pub fn with_file(mut self, display_filename: bool) -> Self {
+    pub fn with_file(&mut self, display_filename: bool) -> &mut Self {
         if display_filename {
             self.schema.insert(
                 SchemaKey::from("filename"),
@@ -531,7 +529,7 @@ where
     /// displayed.
     ///
     /// [line]: tracing_core::Metadata::line
-    pub fn with_line_number(mut self, display_line_number: bool) -> Self {
+    pub fn with_line_number(&mut self, display_line_number: bool) -> &mut Self {
         if display_line_number {
             self.schema.insert(
                 SchemaKey::from("line_number"),
@@ -544,7 +542,7 @@ where
     }
 
     /// Sets whether or not an event's level is displayed.
-    pub fn with_level(mut self, display_level: bool) -> Self {
+    pub fn with_level(&mut self, display_level: bool) -> &mut Self {
         if display_level {
             self.schema.insert(
                 SchemaKey::from("level"),
@@ -562,7 +560,7 @@ where
     /// when formatting events.
     ///
     /// [name]: std::thread#naming-threads
-    pub fn with_thread_names(mut self, display_thread_name: bool) -> Self {
+    pub fn with_thread_names(&mut self, display_thread_name: bool) -> &mut Self {
         if display_thread_name {
             self.schema.insert(
                 SchemaKey::from("threadName"),
@@ -584,7 +582,7 @@ where
     /// when formatting events.
     ///
     /// [thread ID]: std::thread::ThreadId
-    pub fn with_thread_ids(mut self, display_thread_id: bool) -> Self {
+    pub fn with_thread_ids(&mut self, display_thread_id: bool) -> &mut Self {
         if display_thread_id {
             self.schema.insert(
                 SchemaKey::from("threadId"),

@@ -68,10 +68,10 @@ where
         let mut layer = JsonLayer::<Registry>::empty().with_writer(self.make_writer);
 
         if self.display_timestamp {
-            layer = layer.with_timer(self.timer);
+            layer.with_timer(self.timer);
         }
 
-        layer = layer
+        layer
             .with_level(self.display_level)
             .flatten_event(self.flatten_event)
             .with_target(self.display_target)
