@@ -7,12 +7,7 @@ use tracing_core::{
 };
 use tracing_serde::fields::AsMap;
 use tracing_subscriber::{
-    fmt::{
-        format::Writer,
-        time::{FormatTime, SystemTime},
-        MakeWriter, TestWriter,
-    },
-    layer::SubscriberExt,
+    fmt::{format::Writer, time::FormatTime, MakeWriter, TestWriter},
     Registry,
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
@@ -86,26 +81,6 @@ pub enum JsonValue<S> {
     Array(Vec<JsonValue<S>>),
     #[allow(clippy::type_complexity)]
     Dynamic(Box<dyn Fn(&EventRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>),
-}
-
-impl<S> Default for JsonLayer<S>
-where
-    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
-{
-    fn default() -> Self {
-        let this = Self {
-            make_writer: io::stdout,
-            log_internal_errors: false,
-            schema: BTreeMap::new(),
-        };
-
-        this.with_target(true)
-            .with_level(true)
-            .with_timer(SystemTime)
-            .with_current_span(true)
-            .flatten_event(false)
-            .with_span_list(true)
-    }
 }
 
 impl<S, W> Layer<S> for JsonLayer<S, W>
@@ -191,11 +166,11 @@ where
                 let res = io::Write::write_all(&mut writer, buf.as_bytes());
                 if self.log_internal_errors {
                     if let Err(e) = res {
-                        eprintln!("[json-subscriber] Unable to write an event to the Writer for this Subscriber! Error: {}\n", e);
+                        eprintln!("[tracing-json] Unable to write an event to the Writer for this Subscriber! Error: {}\n", e);
                     }
                 }
             } else if self.log_internal_errors {
-                eprintln!("[json-subscriber] Unable to format the following event. Name: {}; Fields: {:?}",
+                eprintln!("[tracing-json] Unable to format the following event. Name: {}; Fields: {:?}",
                     event.metadata().name(), event.fields());
             }
 
@@ -204,12 +179,16 @@ where
     }
 }
 
-impl<W> JsonLayer<Registry, W>
+impl<S> JsonLayer<S>
 where
-    W: for<'a> MakeWriter<'a> + 'static,
+    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
-    pub fn finish(self) -> impl Subscriber + for<'a> LookupSpan<'a> {
-        tracing_subscriber::registry().with(self)
+    pub fn empty() -> Self {
+        Self {
+            make_writer: io::stdout,
+            log_internal_errors: false,
+            schema: BTreeMap::new(),
+        }
     }
 }
 
@@ -618,308 +597,5 @@ where
             self.schema.remove(&SchemaKey::from("threadId"));
         }
         self
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::tests::MockMakeWriter;
-
-    use super::*;
-    use tracing_subscriber::fmt::format::Writer;
-    use tracing_subscriber::fmt::time::FormatTime;
-
-    use tracing::subscriber::with_default;
-
-    use std::fmt;
-    use std::path::Path;
-
-    struct MockTime;
-    impl FormatTime for MockTime {
-        fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
-            write!(w, "fake time")
-        }
-    }
-
-    fn subscriber() -> JsonLayer {
-        JsonLayer::default()
-    }
-
-    // TODO uncomment when `tracing` releases version where `&[u8]: Value`
-    // #[test]
-    // fn json() {
-    //     let expected =
-    //     "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]}],\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
-    //     let collector = subscriber()
-    //         .flatten_event(false)
-    //         .with_current_span(true)
-    //         .with_span_list(true);
-    //     test_json(expected, collector, || {
-    //         let span = tracing::span!(
-    //             tracing::Level::INFO,
-    //             "json_span",
-    //             answer = 42,
-    //             number = 3,
-    //             slice = &b"abc"[..]
-    //         );
-    //         let _guard = span.enter();
-    //         tracing::info!("some json test");
-    //     });
-    // }
-
-    #[test]
-    fn json_filename() {
-        let current_path = Path::new("src")
-            .join("layer.rs")
-            .to_str()
-            .expect("path must be valid unicode")
-            // escape windows backslashes
-            .replace('\\', "\\\\");
-        let expected =
-            &format!("{}{}{}",
-                    "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::layer::test\",\"filename\":\"",
-                    current_path,
-                    "\",\"fields\":{\"message\":\"some json test\"}}\n");
-        let collector = subscriber()
-            .flatten_event(false)
-            .with_current_span(true)
-            .with_file(true)
-            .with_span_list(true);
-        test_json(expected, collector, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
-            let _guard = span.enter();
-            tracing::info!("some json test");
-        });
-    }
-
-    #[test]
-    fn json_line_number() {
-        let expected =
-            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::layer::test\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
-        let collector = subscriber()
-            .flatten_event(false)
-            .with_current_span(true)
-            .with_line_number(true)
-            .with_span_list(true);
-        test_json_with_line_number(expected, collector, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
-            let _guard = span.enter();
-            tracing::info!("some json test");
-        });
-    }
-
-    #[test]
-    fn json_flattened_event() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::layer::test\",\"message\":\"some json test\"}\n";
-
-        let collector = subscriber()
-            .flatten_event(true)
-            .with_current_span(true)
-            .with_span_list(true);
-        test_json(expected, collector, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
-            let _guard = span.enter();
-            tracing::info!("some json test");
-        });
-    }
-
-    #[test]
-    fn json_disabled_current_span_event() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
-        let collector = subscriber()
-            .flatten_event(false)
-            .with_current_span(false)
-            .with_span_list(true);
-        test_json(expected, collector, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
-            let _guard = span.enter();
-            tracing::info!("some json test");
-        });
-    }
-
-    #[test]
-    fn json_disabled_span_list_event() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
-        let collector = subscriber()
-            .flatten_event(false)
-            .with_current_span(true)
-            .with_span_list(false);
-        test_json(expected, collector, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
-            let _guard = span.enter();
-            tracing::info!("some json test");
-        });
-    }
-
-    #[test]
-    fn json_nested_span() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
-        let collector = subscriber()
-            .flatten_event(false)
-            .with_current_span(true)
-            .with_span_list(true);
-        test_json(expected, collector, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
-            let _guard = span.enter();
-            let span = tracing::span!(
-                tracing::Level::INFO,
-                "nested_json_span",
-                answer = 43,
-                number = 4
-            );
-            let _guard = span.enter();
-            tracing::info!("some json test");
-        });
-    }
-
-    #[test]
-    fn json_explicit_span() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
-        let collector = subscriber()
-            .flatten_event(false)
-            .with_current_span(true)
-            .with_span_list(true);
-        test_json(expected, collector, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
-            let span = tracing::span!(
-                parent: &span,
-                tracing::Level::INFO,
-                "nested_json_span",
-                answer = 43,
-                number = 4
-            );
-            // No enter
-            tracing::info!(parent: &span, "some json test");
-        });
-    }
-
-    #[test]
-    fn json_explicit_no_span() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
-        let collector = subscriber()
-            .flatten_event(false)
-            .with_current_span(true)
-            .with_span_list(true);
-        test_json(expected, collector, || {
-            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
-            let _guard = span.enter();
-            let span = tracing::span!(
-                tracing::Level::INFO,
-                "nested_json_span",
-                answer = 43,
-                number = 4
-            );
-            let _guard = span.enter();
-            tracing::info!(parent: None, "some json test");
-        });
-    }
-
-    #[test]
-    fn json_no_span() {
-        let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
-        let collector = subscriber()
-            .flatten_event(false)
-            .with_current_span(true)
-            .with_span_list(true);
-        test_json(expected, collector, || {
-            tracing::info!("some json test");
-        });
-    }
-
-    #[test]
-    fn record_works() {
-        // This test reproduces tracing issue #707, where using `Span::record` causes
-        // any events inside the span to be ignored.
-
-        let buffer = MockMakeWriter::default();
-        let subscriber = JsonLayer::default().with_writer(buffer.clone()).finish();
-
-        with_default(subscriber, || {
-            tracing::info!("an event outside the root span");
-            assert_eq!(
-                parse_as_json(&buffer)["fields"]["message"],
-                "an event outside the root span"
-            );
-
-            let span = tracing::info_span!("the span", na = tracing::field::Empty);
-            span.record("na", "value");
-            let _enter = span.enter();
-
-            tracing::info!("an event inside the root span");
-            assert_eq!(
-                parse_as_json(&buffer)["fields"]["message"],
-                "an event inside the root span"
-            );
-        });
-    }
-
-    fn parse_as_json(buffer: &MockMakeWriter) -> serde_json::Value {
-        let buf = String::from_utf8(buffer.buf().to_vec()).unwrap();
-        let json = buf
-            .lines()
-            .last()
-            .expect("expected at least one line to be written!");
-        match serde_json::from_str(json) {
-            Ok(v) => v,
-            Err(e) => panic!(
-                "assertion failed: JSON shouldn't be malformed\n  error: {}\n  json: {}",
-                e, json
-            ),
-        }
-    }
-
-    fn test_json<T>(expected: &str, layer: JsonLayer, producer: impl FnOnce() -> T) {
-        let make_writer = MockMakeWriter::default();
-        let collector = layer
-            .with_writer(make_writer.clone())
-            .with_timer(MockTime)
-            .finish();
-
-        with_default(collector, producer);
-
-        let buf = make_writer.buf();
-        let actual = std::str::from_utf8(&buf[..]).unwrap();
-        assert_eq!(
-            serde_json::from_str::<std::collections::HashMap<&str, serde_json::Value>>(expected)
-                .unwrap(),
-            serde_json::from_str(actual).unwrap()
-        );
-    }
-
-    fn test_json_with_line_number<T>(
-        expected: &str,
-        layer: JsonLayer,
-        producer: impl FnOnce() -> T,
-    ) {
-        let make_writer = MockMakeWriter::default();
-        let collector = layer
-            .with_writer(make_writer.clone())
-            .with_timer(MockTime)
-            .finish();
-
-        with_default(collector, producer);
-
-        let buf = make_writer.buf();
-        let actual = std::str::from_utf8(&buf[..]).unwrap();
-        let mut expected =
-            serde_json::from_str::<std::collections::HashMap<&str, serde_json::Value>>(expected)
-                .unwrap();
-        let expect_line_number = expected.remove("line_number").is_some();
-        let mut actual: std::collections::HashMap<&str, serde_json::Value> =
-            serde_json::from_str(actual).unwrap();
-        let line_number = actual.remove("line_number");
-        if expect_line_number {
-            assert_eq!(line_number.map(|x| x.is_number()), Some(true));
-        } else {
-            assert!(line_number.is_none());
-        }
-        assert_eq!(actual, expected);
     }
 }

@@ -7,3 +7,5 @@ mod write_adaptor;
 #[cfg(test)]
 mod tests;
 mod event;
+
+pub use builder::SubscriberBuilder;
