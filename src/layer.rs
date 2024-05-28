@@ -116,7 +116,7 @@ where
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let Some(span) = ctx.span(id) else {
             if self.log_internal_errors {
-                eprintln!("[tracing-json] Span not found, this is a bug.");
+                eprintln!("[json-subscriber] Span not found, this is a bug.");
             }
             return;
         };
@@ -133,7 +133,7 @@ where
             extensions.insert(fields);
         } else if self.log_internal_errors {
             eprintln!(
-                "[tracing-json] Unable to format the following event, ignoring: {:?}",
+                "[json-subscriber] Unable to format the following event, ignoring: {:?}",
                 attrs
             );
         }
@@ -142,7 +142,7 @@ where
     fn on_record(&self, id: &Id, values: &Record<'_>, ctx: Context<'_, S>) {
         let Some(span) = ctx.span(id) else {
             if self.log_internal_errors {
-                eprintln!("[tracing-json] Span not found, this is a bug.");
+                eprintln!("[json-subscriber] Span not found, this is a bug.");
             }
             return;
         };
@@ -150,7 +150,7 @@ where
         let mut extensions = span.extensions_mut();
         let Some(fields) = extensions.get_mut::<JsonFields>() else {
             if self.log_internal_errors {
-                eprintln!("[tracing-json] Span was created but does not contain formatted fields, this is a bug and some fields may have been lost.");
+                eprintln!("[json-subscriber] Span was created but does not contain formatted fields, this is a bug and some fields may have been lost.");
             }
             return;
         };
@@ -191,11 +191,11 @@ where
                 let res = io::Write::write_all(&mut writer, buf.as_bytes());
                 if self.log_internal_errors {
                     if let Err(e) = res {
-                        eprintln!("[tracing-json] Unable to write an event to the Writer for this Subscriber! Error: {}\n", e);
+                        eprintln!("[json-subscriber] Unable to write an event to the Writer for this Subscriber! Error: {}\n", e);
                     }
                 }
             } else if self.log_internal_errors {
-                eprintln!("[tracing-json] Unable to format the following event. Name: {}; Fields: {:?}",
+                eprintln!("[json-subscriber] Unable to format the following event. Name: {}; Fields: {:?}",
                     event.metadata().name(), event.fields());
             }
 
@@ -649,7 +649,7 @@ mod test {
     // #[test]
     // fn json() {
     //     let expected =
-    //     "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]}],\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+    //     "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3,\"slice\":[97,98,99]}],\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
     //     let collector = subscriber()
     //         .flatten_event(false)
     //         .with_current_span(true)
@@ -677,7 +677,7 @@ mod test {
             .replace('\\', "\\\\");
         let expected =
             &format!("{}{}{}",
-                    "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_json::layer::test\",\"filename\":\"",
+                    "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::layer::test\",\"filename\":\"",
                     current_path,
                     "\",\"fields\":{\"message\":\"some json test\"}}\n");
         let collector = subscriber()
@@ -695,7 +695,7 @@ mod test {
     #[test]
     fn json_line_number() {
         let expected =
-            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_json::layer::test\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
+            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::layer::test\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -711,7 +711,7 @@ mod test {
     #[test]
     fn json_flattened_event() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_json::layer::test\",\"message\":\"some json test\"}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::layer::test\",\"message\":\"some json test\"}\n";
 
         let collector = subscriber()
             .flatten_event(true)
@@ -727,7 +727,7 @@ mod test {
     #[test]
     fn json_disabled_current_span_event() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(false)
@@ -742,7 +742,7 @@ mod test {
     #[test]
     fn json_disabled_span_list_event() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -757,7 +757,7 @@ mod test {
     #[test]
     fn json_nested_span() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -779,7 +779,7 @@ mod test {
     #[test]
     fn json_explicit_span() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -801,7 +801,7 @@ mod test {
     #[test]
     fn json_explicit_no_span() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -823,7 +823,7 @@ mod test {
     #[test]
     fn json_no_span() {
         let expected =
-        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"tracing_json::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"json_subscriber::layer::test\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
