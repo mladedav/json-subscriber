@@ -1,9 +1,9 @@
 use std::{
-    io,
+    fmt, io,
     sync::{Arc, Mutex, MutexGuard, TryLockError},
 };
 
-use tracing_subscriber::fmt::MakeWriter;
+use tracing_subscriber::fmt::{format::Writer, time::FormatTime, MakeWriter};
 
 pub(crate) struct MockWriter {
     buf: Arc<Mutex<Vec<u8>>>,
@@ -52,5 +52,12 @@ impl<'a> MakeWriter<'a> for MockMakeWriter {
 
     fn make_writer(&'a self) -> Self::Writer {
         MockWriter::new(self.buf.clone())
+    }
+}
+
+pub(crate) struct MockTime;
+impl FormatTime for MockTime {
+    fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
+        write!(w, "fake time")
     }
 }

@@ -1,11 +1,11 @@
-mod builder;
+pub mod builder;
+mod event;
+pub mod fmt;
 pub mod layer;
-mod serde;
 mod visitor;
 mod write_adaptor;
 
 #[cfg(test)]
 mod tests;
-mod event;
 
-pub use builder::SubscriberBuilder;
+pub use fmt::fmt;

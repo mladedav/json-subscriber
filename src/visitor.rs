@@ -1,9 +1,6 @@
 use std::{collections::btree_map::Entry, fmt};
 use tracing_core::field;
 
-#[cfg(feature = "tracing-log")]
-use tracing_log::NormalizeEvent;
-
 use crate::layer::JsonFields;
 
 /// The [visitor] produced by [`JsonFields`]'s [`MakeVisitor`] implementation.

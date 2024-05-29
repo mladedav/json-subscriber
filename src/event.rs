@@ -34,13 +34,12 @@ impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
         self.event.metadata().name()
     }
 
+    #[cfg(feature = "tracing-log")]
+    pub fn normalized_metadata(&self) -> Option<Metadata<'_>> {
+        self.event.normalized_metadata()
+    }
+
     pub fn metadata(&self) -> &'static Metadata<'static> {
-        #[cfg(feature = "tracing-log")]
-        {
-            let normalized_meta = self.event.normalized_metadata();
-            normalized_meta.as_ref().unwrap_or_else(|| event.metadata())
-        }
-        #[cfg(not(feature = "tracing-log"))]
         self.event.metadata()
     }
 

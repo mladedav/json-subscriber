@@ -1,21 +1,87 @@
-use std::io;
+use std::{error::Error, io};
 
-use tracing::Subscriber;
+use tracing::{Dispatch, Subscriber};
+use tracing_core::LevelFilter;
 use tracing_subscriber::{
     fmt::{
         time::{FormatTime, SystemTime},
         MakeWriter, TestWriter,
     },
-    layer::SubscriberExt,
+    layer::{Layered, SubscriberExt},
     registry::LookupSpan,
-    Registry,
+    reload, Layer, Registry,
 };
 
 use crate::layer::JsonLayer;
 
-pub struct SubscriberBuilder<W = fn() -> io::Stdout, T = SystemTime> {
+/// Configures and constructs `Subscriber`s.
+///
+/// This should be this library's replacement for [`tracing_subscriber::fmt::SubscriberBuilder`].
+///
+/// Returns a new [`SubscriberBuilder`] for configuring a [formatting subscriber]. The default value should be mostly equivalent to calling `tracing_subscriber::fmt().json()`.
+///
+/// # Examples
+///
+/// Using [`init`] to set the default subscriber:
+///
+/// ```rust
+/// json_subscriber::builder::SubscriberBuilder::default().init();
+/// ```
+///
+/// Configuring the output format:
+///
+/// ```rust
+/// json_subscriber::fmt()
+///     // Configure formatting settings.
+///     .with_target(false)
+///     .with_timer(tracing_subscriber::fmt::time::uptime())
+///     .with_level(true)
+///     // Set the subscriber as the default.
+///     .init();
+/// ```
+///
+/// [`try_init`] returns an error if the default subscriber could not be set:
+///
+/// ```rust
+/// use std::error::Error;
+///
+/// fn init_subscriber() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+///     json_subscriber::fmt()
+///         // This is no-op. This subscriber uses only JSON.
+///         .json()
+///         // Configure the subscriber to flatten event fields in the output JSON objects.
+///         .flatten_event(true)
+///         // Set the subscriber as the default, returning an error if this fails.
+///         .try_init()?;
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// Rather than setting the subscriber as the default, [`finish`] _returns_ the
+/// constructed subscriber, which may then be passed to other functions:
+///
+/// ```rust
+/// let subscriber = json_subscriber::fmt()
+///     .with_max_level(tracing::Level::DEBUG)
+///     .compact()
+///     .finish();
+///
+/// tracing::subscriber::with_default(subscriber, || {
+///     // the subscriber will only be set as the default
+///     // inside this closure...
+/// })
+/// ```
+///
+/// [formatting subscriber]: Subscriber
+/// [`SubscriberBuilder::default()`]: SubscriberBuilder::default
+/// [`init`]: SubscriberBuilder::init()
+/// [`try_init`]: SubscriberBuilder::try_init()
+/// [`finish`]: SubscriberBuilder::finish()
+pub struct SubscriberBuilder<W = fn() -> io::Stdout, T = SystemTime, F = LevelFilter> {
     make_writer: W,
     timer: T,
+    filter: F,
 
     log_internal_errors: bool,
 
@@ -33,8 +99,9 @@ pub struct SubscriberBuilder<W = fn() -> io::Stdout, T = SystemTime> {
 
 impl Default for SubscriberBuilder {
     fn default() -> Self {
-        let this = Self {
+        Self {
             make_writer: io::stdout,
+            filter: LevelFilter::INFO,
             timer: SystemTime,
             log_internal_errors: false,
 
@@ -48,24 +115,23 @@ impl Default for SubscriberBuilder {
             flatten_event: false,
             display_current_span: true,
             display_span_list: true,
-        };
-
-        this.with_target(true)
-            .with_level(true)
-            .with_timer(SystemTime)
-            .with_current_span(true)
-            .flatten_event(false)
-            .with_span_list(true)
+        }
     }
 }
 
-impl<W, T> SubscriberBuilder<W, T>
+impl<W, T, F> SubscriberBuilder<W, T, F>
 where
-    W: for<'writer> MakeWriter<'writer> + 'static,
+    W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
     T: FormatTime + Send + Sync + 'static,
+    F: Layer<Layered<JsonLayer<Registry, W>, Registry>> + 'static,
+    Layered<F, Layered<JsonLayer<Registry, W>, Registry>>:
+        tracing_core::Subscriber + Into<Dispatch>,
 {
-    pub fn finish(self) -> impl Subscriber + for<'a> LookupSpan<'a> {
-        let mut layer = JsonLayer::<Registry>::empty().with_writer(self.make_writer);
+    pub(crate) fn layers<S>(self) -> (JsonLayer<S, W>, F)
+    where
+        S: Subscriber + for<'lookup> LookupSpan<'lookup>,
+    {
+        let mut layer = JsonLayer::<S>::empty().with_writer(self.make_writer);
 
         if self.display_timestamp {
             layer.with_timer(self.timer);
@@ -82,11 +148,63 @@ where
             .with_thread_names(self.display_thread_name)
             .with_thread_ids(self.display_thread_id);
 
-        tracing_subscriber::registry().with(layer)
+        (layer, self.filter)
+    }
+
+    /// Finish the builder, returning a new [`Subscriber`] which can be used to [lookup spans].
+    ///
+    /// [lookup spans]: LookupSpan
+    pub fn finish(self) -> Layered<F, Layered<JsonLayer<Registry, W>, Registry>> {
+        let (json_layer, filter_layer) = self.layers();
+        tracing_subscriber::registry()
+            .with(json_layer)
+            .with(filter_layer)
+    }
+
+    /// Install this Subscriber as the global default if one is
+    /// not already set.
+    ///
+    /// If the `tracing-log` feature is enabled, this will also install
+    /// the LogTracer to convert `Log` records into `tracing` `Event`s.
+    ///
+    /// # Errors
+    /// Returns an Error if the initialization was unsuccessful, likely
+    /// because a global subscriber was already installed by another
+    /// call to `try_init`.
+    pub fn try_init(self) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+        use tracing_subscriber::util::SubscriberInitExt;
+        self.finish().try_init()?;
+
+        Ok(())
+    }
+
+    /// Install this Subscriber as the global default.
+    ///
+    /// If the `tracing-log` feature is enabled, this will also install
+    /// the LogTracer to convert `Log` records into `tracing` `Event`s.
+    ///
+    /// # Panics
+    /// Panics if the initialization was unsuccessful, likely because a
+    /// global subscriber was already installed by another call to `try_init`.
+    pub fn init(self) {
+        self.try_init()
+            .expect("Unable to install global subscriber")
     }
 }
 
-impl<W, T> SubscriberBuilder<W, T> {
+impl<W, T, F> SubscriberBuilder<W, T, F> {
+    /// This does nothing. It exists only to mimic `tracing-subscriber`'s API.
+    #[deprecated(note = "Calling `json()` does nothing.")]
+    pub fn json(self) -> Self {
+        self
+    }
+
+    /// This does nothing. It exists only to mimic `tracing-subscriber`'s API.
+    #[deprecated(note = "Calling `with_ansi()` does nothing.")]
+    pub fn with_ansi(self, _ansi: bool) -> Self {
+        self
+    }
+
     /// Sets the [`MakeWriter`] that the [`SubscriberBuilder`] being built will use to write events.
     ///
     /// # Examples
@@ -95,24 +213,18 @@ impl<W, T> SubscriberBuilder<W, T> {
     ///
     /// ```rust
     /// use std::io;
-    /// use tracing_subscriber::fmt;
     ///
-    /// let fmt_subscriber = fmt::subscriber()
+    /// let fmt_subscriber = json_subscriber::fmt()
     ///     .with_writer(io::stderr);
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = fmt_subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
-    ///
-    /// [`MakeWriter`]: super::writer::MakeWriter
-    /// [`SubscriberBuilder`]: super::SubscriberBuilder
-    pub fn with_writer<W2>(self, make_writer: W2) -> SubscriberBuilder<W2, T>
+    pub fn with_writer<W2>(self, make_writer: W2) -> SubscriberBuilder<W2, T, F>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
         SubscriberBuilder {
             make_writer,
             timer: self.timer,
+            filter: self.filter,
             log_internal_errors: self.log_internal_errors,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
@@ -137,26 +249,21 @@ impl<W, T> SubscriberBuilder<W, T> {
     /// Mutably borrows the [writer] for this subscriber.
     ///
     /// This method is primarily expected to be used with the
-    /// [`reload::Handle::modify`](crate::reload::Handle::modify) method.
+    /// [`reload::Handle::modify`](reload::Handle::modify) method.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use tracing::info;
-    /// # use tracing_subscriber::{fmt,reload,Registry,prelude::*};
-    /// # fn non_blocking<T: std::io::Write>(writer: T) -> (fn() -> std::io::Stdout) {
-    /// #   std::io::stdout
-    /// # }
+    /// use tracing_subscriber::{fmt::writer::EitherWriter, reload};
     /// # fn main() {
-    /// let subscriber = fmt::subscriber().with_writer(non_blocking(std::io::stderr()));
-    /// let (subscriber, reload_handle) = reload::SubscriberBuilder::new(subscriber);
-    /// #
-    /// # // specifying the Registry type is required
-    /// # let _: &reload::Handle<fmt::SubscriberBuilder<W, T> = &reload_handle;
-    /// #
-    /// info!("This will be logged to stderr");
-    /// reload_handle.modify(|subscriber| *subscriber.writer_mut() = non_blocking(std::io::stdout()));
-    /// info!("This will be logged to stdout");
+    /// let subscriber = json_subscriber::fmt::subscriber()
+    ///     .with_writer::<Box<dyn Fn() -> EitherWriter<_, _>>>(Box::new(|| EitherWriter::A(std::io::stderr())));
+    /// let (subscriber, reload_handle) = reload::Layer::new(subscriber);
+    /// # let subscriber: reload::Layer<_, tracing_subscriber::Registry> = subscriber;
+    ///
+    /// tracing::info!("This will be logged to stderr");
+    /// reload_handle.modify(|subscriber| *subscriber.writer_mut() = Box::new(|| EitherWriter::B(std::io::stdout())));
+    /// tracing::info!("This will be logged to stdout");
     /// # }
     /// ```
     ///
@@ -176,21 +283,19 @@ impl<W, T> SubscriberBuilder<W, T> {
     ///
     /// ```rust
     /// use std::io;
-    /// use tracing_subscriber::fmt;
+    /// use json_subscriber::fmt;
     ///
     /// let fmt_subscriber = fmt::subscriber()
     ///     .with_test_writer();
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = fmt_subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
-    /// [`TestWriter`]: super::writer::TestWriter
-    pub fn with_test_writer(self) -> SubscriberBuilder<TestWriter, T> {
+    /// [`TestWriter`]: tracing_subscriber::fmt::writer::TestWriter
+    pub fn with_test_writer(self) -> SubscriberBuilder<TestWriter, T, F> {
         SubscriberBuilder {
             make_writer: TestWriter::default(),
             timer: self.timer,
+            filter: self.filter,
             log_internal_errors: self.log_internal_errors,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
@@ -205,17 +310,10 @@ impl<W, T> SubscriberBuilder<W, T> {
         }
     }
 
-    /// Sets whether to write errors from [`FormatEvent`] to the writer.
-    /// Defaults to true.
+    /// Sets whether to write errors during internal operations to stderr.
+    /// This can help identify problems with serialization and with debugging issues.
     ///
-    /// By default, `fmt::SubscriberBuilder` will write any `FormatEvent`-internal errors to
-    /// the writer. These errors are unlikely and will only occur if there is a
-    /// bug in the `FormatEvent` implementation or its dependencies.
-    ///
-    /// If writing to the writer fails, the error message is printed to stderr
-    /// as a fallback.
-    ///
-    /// [`FormatEvent`]: crate::fmt::FormatEvent
+    /// Defaults to false.
     pub fn log_internal_errors(self, log_internal_errors: bool) -> Self {
         Self {
             log_internal_errors,
@@ -233,22 +331,21 @@ impl<W, T> SubscriberBuilder<W, T> {
     ///
     /// ```rust
     /// use tracing::Level;
-    /// use tracing_subscriber::fmt::{self, writer::MakeWriterExt};
+    /// use json_subscriber::fmt;
+    /// use tracing_subscriber::fmt::writer::MakeWriterExt;
     ///
     /// let stderr = std::io::stderr.with_max_level(Level::WARN);
     /// let subscriber = fmt::subscriber()
     ///     .map_writer(move |w| stderr.or_else(w));
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
-    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> SubscriberBuilder<W2, T>
+    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> SubscriberBuilder<W2, T, F>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
         SubscriberBuilder {
             make_writer: f(self.make_writer),
             timer: self.timer,
+            filter: self.filter,
             log_internal_errors: self.log_internal_errors,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
@@ -264,9 +361,7 @@ impl<W, T> SubscriberBuilder<W, T> {
     }
 
     /// Sets the JSON subscriber being built to flatten event metadata.
-    ///
-    /// See [`format::Json`]
-    pub fn flatten_event(self, flatten_event: bool) -> SubscriberBuilder<W, T> {
+    pub fn flatten_event(self, flatten_event: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             flatten_event,
             ..self
@@ -275,9 +370,7 @@ impl<W, T> SubscriberBuilder<W, T> {
 
     /// Sets whether or not the formatter will include the current span in
     /// formatted events.
-    ///
-    /// See [`format::Json`]
-    pub fn with_current_span(self, display_current_span: bool) -> SubscriberBuilder<W, T> {
+    pub fn with_current_span(self, display_current_span: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_current_span,
             ..self
@@ -286,9 +379,7 @@ impl<W, T> SubscriberBuilder<W, T> {
 
     /// Sets whether or not the formatter will include a list (from root to leaf)
     /// of all currently entered spans in formatted events.
-    ///
-    /// See [`format::Json`]
-    pub fn with_span_list(self, display_span_list: bool) -> SubscriberBuilder<W, T> {
+    pub fn with_span_list(self, display_span_list: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_span_list,
             ..self
@@ -297,22 +388,24 @@ impl<W, T> SubscriberBuilder<W, T> {
 
     /// Use the given [`timer`] for log message timestamps.
     ///
-    /// See the [`time` module] for the provided timer implementations.
+    /// See the [`tracing_subscriber::fmt::time` module][`time` module] for the
+    /// provided timer implementations.
     ///
-    /// Note that using the `"time`"" feature flag enables the
+    /// Note that using the `time` feature flag on `tracing_subscriber` enables the
     /// additional time formatters [`UtcTime`] and [`LocalTime`], which use the
     /// [`time` crate] to provide more sophisticated timestamp formatting
     /// options.
     ///
-    /// [`timer`]: time::FormatTime
-    /// [`time` module]: mod@time
-    /// [`UtcTime`]: time::UtcTime
-    /// [`LocalTime`]: time::LocalTime
+    /// [`timer`]: tracing_subscriber::fmt::time::FormatTime
+    /// [`time` module]: mod@tracing_subscriber::fmt::time
+    /// [`UtcTime`]: tracing_subscriber::fmt::time::UtcTime
+    /// [`LocalTime`]: tracing_subscriber::fmt::time::LocalTime
     /// [`time` crate]: https://docs.rs/time/0.3
-    pub fn with_timer<T2>(self, timer: T2) -> SubscriberBuilder<W, T2> {
+    pub fn with_timer<T2>(self, timer: T2) -> SubscriberBuilder<W, T2, F> {
         SubscriberBuilder {
             make_writer: self.make_writer,
             timer,
+            filter: self.filter,
             log_internal_errors: self.log_internal_errors,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
@@ -328,10 +421,11 @@ impl<W, T> SubscriberBuilder<W, T> {
     }
 
     /// Do not emit timestamps with log messages.
-    pub fn without_time(self) -> SubscriberBuilder<W, ()> {
+    pub fn without_time(self) -> SubscriberBuilder<W, (), F> {
         SubscriberBuilder {
             make_writer: self.make_writer,
             timer: (),
+            filter: self.filter,
             log_internal_errors: self.log_internal_errors,
             display_timestamp: self.display_timestamp,
             display_target: self.display_target,
@@ -395,7 +489,7 @@ impl<W, T> SubscriberBuilder<W, T> {
     // }
 
     /// Sets whether or not an event's target is displayed.
-    pub fn with_target(self, display_target: bool) -> SubscriberBuilder<W, T> {
+    pub fn with_target(self, display_target: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_target,
             ..self
@@ -406,7 +500,7 @@ impl<W, T> SubscriberBuilder<W, T> {
     /// displayed.
     ///
     /// [file]: tracing_core::Metadata::file
-    pub fn with_file(self, display_filename: bool) -> SubscriberBuilder<W, T> {
+    pub fn with_file(self, display_filename: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_filename,
             ..self
@@ -417,7 +511,7 @@ impl<W, T> SubscriberBuilder<W, T> {
     /// displayed.
     ///
     /// [line]: tracing_core::Metadata::line
-    pub fn with_line_number(self, display_line_number: bool) -> SubscriberBuilder<W, T> {
+    pub fn with_line_number(self, display_line_number: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_line_number,
             ..self
@@ -425,7 +519,7 @@ impl<W, T> SubscriberBuilder<W, T> {
     }
 
     /// Sets whether or not an event's level is displayed.
-    pub fn with_level(self, display_level: bool) -> SubscriberBuilder<W, T> {
+    pub fn with_level(self, display_level: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_level,
             ..self
@@ -436,7 +530,7 @@ impl<W, T> SubscriberBuilder<W, T> {
     /// when formatting events.
     ///
     /// [name]: std::thread#naming-threads
-    pub fn with_thread_names(self, display_thread_name: bool) -> SubscriberBuilder<W, T> {
+    pub fn with_thread_names(self, display_thread_name: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_thread_name,
             ..self
@@ -447,33 +541,214 @@ impl<W, T> SubscriberBuilder<W, T> {
     /// when formatting events.
     ///
     /// [thread ID]: std::thread::ThreadId
-    pub fn with_thread_ids(self, display_thread_id: bool) -> SubscriberBuilder<W, T> {
+    pub fn with_thread_ids(self, display_thread_id: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_thread_id,
             ..self
         }
     }
+
+    /// Sets the [`EnvFilter`] that the collector will use to determine if
+    /// a span or event is enabled.
+    ///
+    /// Note that this method requires the "env-filter" feature flag to be enabled.
+    ///
+    /// If a filter was previously set, or a maximum level was set by the
+    /// [`with_max_level`] method, that value is replaced by the new filter.
+    ///
+    /// # Examples
+    ///
+    /// Setting a filter based on the value of the `RUST_LOG` environment
+    /// variable:
+    /// ```rust
+    /// use tracing_subscriber::EnvFilter;
+    ///
+    /// json_subscriber::fmt()
+    ///     .with_env_filter(EnvFilter::from_default_env())
+    ///     .init();
+    /// ```
+    ///
+    /// Setting a filter based on a pre-set filter directive string:
+    /// ```rust
+    /// json_subscriber::fmt()
+    ///     .with_env_filter("my_crate=info,my_crate::my_mod=debug,[my_span]=trace")
+    ///     .init();
+    /// ```
+    ///
+    /// Adding additional directives to a filter constructed from an env var:
+    /// ```rust
+    /// use tracing_subscriber::filter::{EnvFilter, LevelFilter};
+    ///
+    /// # fn filter() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    /// let filter = EnvFilter::try_from_env("MY_CUSTOM_FILTER_ENV_VAR")?
+    ///     // Set the base level when not matched by other directives to WARN.
+    ///     .add_directive(LevelFilter::WARN.into())
+    ///     // Set the max level for `my_crate::my_mod` to DEBUG, overriding
+    ///     // any directives parsed from the env variable.
+    ///     .add_directive("my_crate::my_mod=debug".parse()?);
+    ///
+    /// json_subscriber::fmt()
+    ///     .with_env_filter(filter)
+    ///     .try_init()?;
+    /// # Ok(())}
+    /// ```
+    /// [`EnvFilter`]: tracing_subscriber::filter::EnvFilter
+    /// [`with_max_level`]: Self::with_max_level()
+    #[cfg(feature = "env-filter")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "env-filter")))]
+    pub fn with_env_filter(
+        self,
+        filter: impl Into<tracing_subscriber::EnvFilter>,
+    ) -> SubscriberBuilder<W, T, tracing_subscriber::EnvFilter> {
+        SubscriberBuilder {
+            make_writer: self.make_writer,
+            timer: self.timer,
+            filter: filter.into(),
+            log_internal_errors: self.log_internal_errors,
+            display_timestamp: self.display_timestamp,
+            display_target: self.display_target,
+            display_level: self.display_level,
+            display_thread_id: self.display_thread_id,
+            display_thread_name: self.display_thread_name,
+            display_filename: self.display_filename,
+            display_line_number: self.display_line_number,
+            flatten_event: self.flatten_event,
+            display_current_span: self.display_current_span,
+            display_span_list: self.display_span_list,
+        }
+    }
+
+    /// Sets the maximum [verbosity level] that will be enabled by the
+    /// collector.
+    ///
+    /// If the max level has already been set, or a [`EnvFilter`] was added by
+    /// [`with_env_filter`], this replaces that configuration with the new
+    /// maximum level.
+    ///
+    /// # Examples
+    ///
+    /// Enable up to the `DEBUG` verbosity level:
+    /// ```rust
+    /// use tracing_subscriber::fmt;
+    /// use tracing::Level;
+    ///
+    /// fmt()
+    ///     .with_max_level(Level::DEBUG)
+    ///     .init();
+    /// ```
+    /// This collector won't record any spans or events!
+    /// ```rust
+    /// use tracing_subscriber::{fmt, filter::LevelFilter};
+    ///
+    /// let subscriber = fmt()
+    ///     .with_max_level(LevelFilter::OFF)
+    ///     .finish();
+    /// ```
+    /// [verbosity level]: tracing_core::Level
+    /// [`EnvFilter`]: struct@crate::filter::EnvFilter
+    /// [`with_env_filter`]: fn@Self::with_env_filter
+    pub fn with_max_level(
+        self,
+        filter: impl Into<LevelFilter>,
+    ) -> SubscriberBuilder<W, T, LevelFilter> {
+        SubscriberBuilder {
+            make_writer: self.make_writer,
+            timer: self.timer,
+            filter: filter.into(),
+            log_internal_errors: self.log_internal_errors,
+            display_timestamp: self.display_timestamp,
+            display_target: self.display_target,
+            display_level: self.display_level,
+            display_thread_id: self.display_thread_id,
+            display_thread_name: self.display_thread_name,
+            display_filename: self.display_filename,
+            display_line_number: self.display_line_number,
+            flatten_event: self.flatten_event,
+            display_current_span: self.display_current_span,
+            display_span_list: self.display_span_list,
+        }
+    }
+
+    /// Configures the collector being built to allow filter reloading at
+    /// runtime.
+    ///
+    /// The returned builder will have a [`reload_handle`] method, which returns
+    /// a [`reload::Handle`] that may be used to set a new filter value.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// use tracing::Level;
+    /// use tracing_subscriber::util::SubscriberInitExt;
+    ///
+    /// let builder = tracing_subscriber::fmt()
+    ///      // Set a max level filter on the collector
+    ///     .with_max_level(Level::INFO)
+    ///     .with_filter_reloading();
+    ///
+    /// // Get a handle for modifying the collector's max level filter.
+    /// let handle = builder.reload_handle();
+    ///
+    /// // Finish building the collector, and set it as the default.
+    /// builder.finish().init();
+    ///
+    /// // Currently, the max level is INFO, so this event will be disabled.
+    /// tracing::debug!("this is not recorded!");
+    ///
+    /// // Use the handle to set a new max level filter.
+    /// // (this returns an error if the collector has been dropped, which shouldn't
+    /// // happen in this example.)
+    /// handle.reload(Level::DEBUG).expect("the collector should still exist");
+    ///
+    /// // Now, the max level is INFO, so this event will be recorded.
+    /// tracing::debug!("this is recorded!");
+    /// ```
+    ///
+    /// [`reload_handle`]: Self::reload_handle
+    /// [`reload::Handle`]: crate::reload::Handle
+    pub fn with_filter_reloading(self) -> SubscriberBuilder<W, T, reload::Layer<F, Registry>> {
+        let (filter, _) = reload::Layer::new(self.filter);
+        SubscriberBuilder {
+            make_writer: self.make_writer,
+            timer: self.timer,
+            filter,
+            log_internal_errors: self.log_internal_errors,
+            display_timestamp: self.display_timestamp,
+            display_target: self.display_target,
+            display_level: self.display_level,
+            display_thread_id: self.display_thread_id,
+            display_thread_name: self.display_thread_name,
+            display_filename: self.display_filename,
+            display_line_number: self.display_line_number,
+            flatten_event: self.flatten_event,
+            display_current_span: self.display_current_span,
+            display_span_list: self.display_span_list,
+        }
+    }
+}
+
+impl<W, T, F> SubscriberBuilder<W, T, reload::Layer<F, Registry>> {
+    /// Returns a `Handle` that may be used to reload the constructed collector's
+    /// filter.
+    pub fn reload_handle(&self) -> reload::Handle<F, Registry> {
+        self.filter.handle()
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use super::SubscriberBuilder;
-    use crate::tests::MockMakeWriter;
+    use std::path::Path;
 
-    use tracing_subscriber::fmt::format::Writer;
-    use tracing_subscriber::fmt::time::FormatTime;
+    use tracing_core::Dispatch;
+    use tracing_subscriber::{filter::LevelFilter, registry::LookupSpan, Registry};
 
     use tracing::subscriber::with_default;
 
-    use std::fmt;
-    use std::path::Path;
-
-    struct MockTime;
-    impl FormatTime for MockTime {
-        fn format_time(&self, w: &mut Writer<'_>) -> fmt::Result {
-            write!(w, "fake time")
-        }
-    }
+    use super::SubscriberBuilder;
+    use crate::{
+        layer::JsonLayer,
+        tests::{MockMakeWriter, MockTime},
+    };
 
     fn subscriber() -> SubscriberBuilder {
         SubscriberBuilder::default()
@@ -757,5 +1032,27 @@ mod test {
             assert!(line_number.is_none());
         }
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn subscriber_downcasts() {
+        let subscriber = SubscriberBuilder::default().finish();
+        let dispatch = Dispatch::new(subscriber);
+        assert!(dispatch.downcast_ref::<Registry>().is_some());
+    }
+
+    #[test]
+    fn subscriber_downcasts_to_parts() {
+        let subscriber = SubscriberBuilder::default().finish();
+        let dispatch = Dispatch::new(subscriber);
+        assert!(dispatch.downcast_ref::<JsonLayer>().is_some());
+        assert!(dispatch.downcast_ref::<LevelFilter>().is_some());
+    }
+
+    #[test]
+    fn is_lookup_span() {
+        fn assert_lookup_span<T: for<'a> LookupSpan<'a>>(_: T) {}
+        let subscriber = SubscriberBuilder::default().finish();
+        assert_lookup_span(subscriber)
     }
 }
