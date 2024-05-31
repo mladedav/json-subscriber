@@ -8,16 +8,17 @@ use tracing_core::{
 use tracing_serde::fields::AsMap;
 use tracing_subscriber::{
     fmt::{format::Writer, time::FormatTime, MakeWriter, TestWriter},
+    registry::SpanRef,
     Registry,
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::{event::EventRef, visitor::JsonVisitor};
+use crate::{event::EventRef, value::Value, visitor::JsonVisitor};
 
 #[derive(Default, Debug)]
 pub struct JsonFields {
     pub(crate) fields: BTreeMap<&'static str, serde_json::Value>,
-    pub(crate) unformatted_fields: bool,
+    pub(crate) formatted: Option<String>,
 }
 
 impl serde::Serialize for JsonFields {
@@ -80,7 +81,8 @@ pub enum JsonValue<S> {
     Struct(BTreeMap<&'static str, JsonValue<S>>),
     Array(Vec<JsonValue<S>>),
     #[allow(clippy::type_complexity)]
-    Dynamic(Box<dyn Fn(&EventRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>),
+    DynamicFromEvent(Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
+    DynamicFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
 }
 
 impl<S, W> Layer<S> for JsonLayer<S, W>
@@ -148,7 +150,7 @@ where
             let borrow = buf.try_borrow_mut();
             let mut a;
             let mut b;
-            let mut buf = match borrow {
+            let buf = match borrow {
                 Ok(buf) => {
                     a = buf;
                     &mut *a
@@ -159,7 +161,7 @@ where
                 }
             };
 
-            if self.format_event(ctx, Writer::new(&mut buf), event)
+            if self.format_event(ctx, buf, event)
                 .is_ok()
             {
                 let mut writer = self.make_writer.make_writer_for(event.metadata());
@@ -344,6 +346,10 @@ where
         self.schema.insert(SchemaKey::from(key.into()), value);
     }
 
+    pub fn remove_object(&mut self, key: impl Into<Cow<'static, str>>) {
+        self.schema.remove(&SchemaKey::from(key.into()));
+    }
+
     pub fn serialize_extension<Ext: Serialize + 'static>(
         &mut self,
         key: impl Into<Cow<'static, str>>,
@@ -362,14 +368,13 @@ where
     {
         self.schema.insert(
             SchemaKey::from(key.into()),
-            JsonValue::Dynamic(Box::new(move |event| {
-                event.parent_span().and_then(|span| {
-                    span.extensions()
-                        .get::<Ext>()
-                        .and_then(&mapper)
-                        .map(serde_json::to_value)
-                        .and_then(Result::ok)
-                })
+            JsonValue::DynamicFromSpan(Box::new(move |span| {
+                span.extensions()
+                    .get::<Ext>()
+                    .and_then(&mapper)
+                    .map(serde_json::to_value)
+                    .and_then(Result::ok)
+                    .map(Value::SerdeJson)
             })),
         );
     }
@@ -385,14 +390,13 @@ where
     {
         self.schema.insert(
             SchemaKey::from(key.into()),
-            JsonValue::Dynamic(Box::new(move |event| {
-                event.parent_span().and_then(|span| {
-                    span.extensions()
-                        .get::<Ext>()
-                        .and_then(&mapper)
-                        .map(serde_json::to_value)
-                        .and_then(Result::ok)
-                })
+            JsonValue::DynamicFromSpan(Box::new(move |span| {
+                span.extensions()
+                    .get::<Ext>()
+                    .and_then(&mapper)
+                    .map(serde_json::to_value)
+                    .and_then(Result::ok)
+                    .map(Value::SerdeJson)
             })),
         );
     }
@@ -401,8 +405,10 @@ where
     ///
     /// See [`format::Json`]
     pub fn flatten_event(&mut self, flatten_event: bool) -> &mut Self {
-        let fields = JsonValue::Dynamic(Box::new(|event| {
-            serde_json::to_value(event.field_map()).ok()
+        let fields = JsonValue::DynamicFromEvent(Box::new(|event| {
+            serde_json::to_value(event.field_map())
+                .ok()
+                .map(Value::SerdeJson)
         }));
         if flatten_event {
             self.schema.insert(SchemaKey::Flatten, fields);
@@ -431,25 +437,23 @@ where
     /// of all currently entered spans in formatted events.
     ///
     /// See [`format::Json`]
-    pub fn with_span_list(&mut self, display_span_list: bool) -> &mut Self{
+    pub fn with_span_list(&mut self, display_span_list: bool) -> &mut Self {
         if display_span_list {
             self.schema.insert(
                 SchemaKey::from("spans"),
-                JsonValue::Dynamic(Box::new(|event| {
-                    event
-                        .parent_span()
-                        .as_ref()
-                        .map(|span| {
-                            span.scope()
-                                .from_root()
-                                .map(|span| {
-                                    span.extensions()
-                                        .get::<JsonFields>()
-                                        .and_then(|fields| serde_json::to_value(fields).ok())
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .and_then(|array| serde_json::to_value(array).ok())
+                JsonValue::DynamicFromSpan(Box::new(|span| {
+                    serde_json::to_value(
+                        span.scope()
+                            .from_root()
+                            .map(|span| {
+                                span.extensions()
+                                    .get::<JsonFields>()
+                                    .and_then(|fields| serde_json::to_value(fields).ok())
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .ok()
+                    .map(Value::SerdeJson)
                 })),
             );
         } else {
@@ -475,11 +479,11 @@ where
     pub fn with_timer<T: FormatTime + Send + Sync + 'static>(&mut self, timer: T) -> &mut Self {
         self.schema.insert(
             SchemaKey::from("timestamp"),
-            JsonValue::Dynamic(Box::new(move |_| {
-                let mut timestamp = String::new();
+            JsonValue::DynamicFromEvent(Box::new(move |_| {
+                let mut timestamp = String::with_capacity(32);
                 timer.format_time(&mut Writer::new(&mut timestamp)).ok()?;
 
-                Some(timestamp.into())
+                Some(Value::SerdeJson(timestamp.into()))
             })),
         );
         self
@@ -496,10 +500,8 @@ where
         if display_target {
             self.schema.insert(
                 SchemaKey::from("target"),
-                JsonValue::Dynamic(Box::new(|event| {
-                    Some(serde_json::Value::String(
-                        event.metadata().target().to_owned(),
-                    ))
+                JsonValue::DynamicFromEvent(Box::new(|event| {
+                    Some(Value::Str(event.metadata().target()))
                 })),
             );
         } else {
@@ -517,7 +519,9 @@ where
         if display_filename {
             self.schema.insert(
                 SchemaKey::from("filename"),
-                JsonValue::Dynamic(Box::new(|event| event.metadata().file().map(Into::into))),
+                JsonValue::DynamicFromEvent(Box::new(|event| {
+                    event.metadata().file().map(Value::Str)
+                })),
             );
         } else {
             self.schema.remove(&SchemaKey::from("filename"));
@@ -533,7 +537,13 @@ where
         if display_line_number {
             self.schema.insert(
                 SchemaKey::from("line_number"),
-                JsonValue::Dynamic(Box::new(|event| event.metadata().line().map(Into::into))),
+                JsonValue::DynamicFromEvent(Box::new(|event| {
+                    event
+                        .metadata()
+                        .line()
+                        .map(Into::into)
+                        .map(Value::SerdeJson)
+                })),
             );
         } else {
             self.schema.remove(&SchemaKey::from("line_number"));
@@ -546,8 +556,8 @@ where
         if display_level {
             self.schema.insert(
                 SchemaKey::from("level"),
-                JsonValue::Dynamic(Box::new(|event| {
-                    Some(event.metadata().level().as_str().into())
+                JsonValue::DynamicFromEvent(Box::new(|event| {
+                    Some(Value::Str(event.metadata().level().as_str()))
                 })),
             );
         } else {

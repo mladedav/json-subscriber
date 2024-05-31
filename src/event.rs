@@ -1,15 +1,19 @@
+use crate::cursor::Cursor;
+use crate::layer::JsonLayer;
 use crate::layer::JsonValue;
 use crate::layer::SchemaKey;
-use crate::{layer::JsonLayer, write_adaptor::WriteAdaptor};
+use crate::serde::JsonSubscriberFormatter;
+use crate::value::Value;
 use serde::ser::SerializeMap;
-use serde::Serializer as _;
+use serde::Serializer;
+use std::borrow::Cow;
 use std::fmt;
 use std::ops::Deref;
 use tracing::Metadata;
 use tracing_subscriber::registry::SpanRef;
 
 use tracing::{Event, Subscriber};
-use tracing_subscriber::{fmt::format::Writer, layer::Context, registry::LookupSpan};
+use tracing_subscriber::{layer::Context, registry::LookupSpan};
 
 #[cfg(feature = "tracing-log")]
 use tracing_log::NormalizeEvent;
@@ -57,11 +61,13 @@ where
     pub(crate) fn format_event(
         &self,
         ctx: Context<'_, S>,
-        mut writer: Writer<'_>,
+        writer: &mut String,
         event: &Event<'_>,
     ) -> fmt::Result {
         let mut visit = || {
-            let mut serializer = serde_json::Serializer::new(WriteAdaptor::new(&mut writer));
+            let writer = Cursor::new(writer);
+            let mut serializer =
+                serde_json::Serializer::with_formatter(&writer, JsonSubscriberFormatter);
 
             let mut serializer = serializer.serialize_map(None)?;
 
@@ -70,10 +76,16 @@ where
                 event,
             };
 
+            let mut serialized_something = false;
+
+            let current_span = event_ref.parent_span();
+
             for (key, value) in &self.schema {
-                let Some(value) = resolve_json_value(value, &event_ref) else {
+                let Some(value) = resolve_json_value(value, &event_ref, current_span.as_ref())
+                else {
                     continue;
                 };
+                serialized_something = true;
                 match key {
                     SchemaKey::Static(key) => {
                         serializer.serialize_entry(key, &value)?;
@@ -91,27 +103,33 @@ where
         };
 
         visit().map_err(|_| fmt::Error)?;
-        writeln!(writer)
+        writer.push('\n');
+        Ok(())
     }
 }
 
-fn resolve_json_value<S: for<'lookup> LookupSpan<'lookup>>(
-    value: &JsonValue<S>,
+fn resolve_json_value<'a, S: for<'lookup> LookupSpan<'lookup>>(
+    value: &'a JsonValue<S>,
     event: &EventRef<'_, S>,
-) -> Option<serde_json::Value> {
+    span: Option<&SpanRef<'_, S>>,
+) -> Option<Cow<'a, serde_json::Value>> {
     match value {
-        JsonValue::Serde(value) => Some(value.to_owned()),
-        JsonValue::Struct(map) => Some(serde_json::Value::Object(serde_json::Map::from_iter(
-            map.iter().filter_map(|(key, value)| {
-                Some((key.to_string(), resolve_json_value(value, event)?))
-            }),
+        JsonValue::Serde(value) => Some(Cow::Borrowed(value)),
+        JsonValue::Struct(map) => Some(Cow::Owned(serde_json::Value::Object(
+            serde_json::Map::from_iter(map.iter().filter_map(|(key, value)| {
+                Some((
+                    key.to_string(),
+                    resolve_json_value(value, event, span)?.into_owned(),
+                ))
+            })),
         ))),
-        JsonValue::Array(array) => Some(serde_json::Value::Array(
+        JsonValue::Array(array) => Some(Cow::Owned(serde_json::Value::Array(
             array
                 .iter()
-                .filter_map(|value| resolve_json_value(value, event))
+                .filter_map(|value| resolve_json_value(value, event, span).map(Cow::into_owned))
                 .collect(),
-        )),
-        JsonValue::Dynamic(fun) => fun(event),
+        ))),
+        JsonValue::DynamicFromEvent(fun) => fun(event).map(Value::to_json).map(Cow::Owned),
+        JsonValue::DynamicFromSpan(fun) => span.and_then(fun).map(Value::to_json).map(Cow::Owned),
     }
 }

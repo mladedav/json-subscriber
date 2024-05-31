@@ -1,4 +1,4 @@
-use tracing::Subscriber;
+use tracing::Subscriber as Collect;
 use tracing_subscriber::registry::LookupSpan;
 
 use crate::{builder::SubscriberBuilder, layer::JsonLayer};
@@ -78,7 +78,15 @@ pub fn fmt() -> SubscriberBuilder {
 /// [`Layer::default()`]: Layer::default
 pub fn layer<S>() -> JsonLayer<S>
 where
-    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
+    S: Collect + for<'lookup> LookupSpan<'lookup>,
 {
     SubscriberBuilder::default().layers().0
+}
+
+pub struct Subscriber;
+
+impl Subscriber {
+    pub fn builder() -> SubscriberBuilder {
+        SubscriberBuilder::default()
+    }
 }

@@ -22,11 +22,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.unformatted_fields = true;
+                self.0.formatted = None;
                 vacant.insert(value);
             }
             Entry::Occupied(mut entry) => {
-                self.0.unformatted_fields |= entry.get() != &value;
+                if entry.get() != &value {
+                    self.0.formatted = None;
+                }
                 entry.insert(value);
             }
         }
@@ -38,11 +40,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.unformatted_fields = true;
+                self.0.formatted = None;
                 vacant.insert(value);
             }
             Entry::Occupied(mut entry) => {
-                self.0.unformatted_fields |= entry.get() != &value;
+                if entry.get() != &value {
+                    self.0.formatted = None;
+                }
                 entry.insert(value);
             }
         }
@@ -54,11 +58,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.unformatted_fields = true;
+                self.0.formatted = None;
                 vacant.insert(value);
             }
             Entry::Occupied(mut entry) => {
-                self.0.unformatted_fields |= entry.get() != &value;
+                if entry.get() != &value {
+                    self.0.formatted = None;
+                }
                 entry.insert(value);
             }
         }
@@ -70,11 +76,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.unformatted_fields = true;
+                self.0.formatted = None;
                 vacant.insert(value);
             }
             Entry::Occupied(mut entry) => {
-                self.0.unformatted_fields |= entry.get() != &value;
+                if entry.get() != &value {
+                    self.0.formatted = None;
+                }
                 entry.insert(value);
             }
         }
@@ -88,11 +96,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.unformatted_fields = true;
+                self.0.formatted = None;
                 vacant.insert(serde_value());
             }
             Entry::Occupied(mut entry) => {
-                self.0.unformatted_fields |= entry.get() != value;
+                if entry.get() != &value {
+                    self.0.formatted = None;
+                }
                 entry.insert(serde_value());
             }
         }
