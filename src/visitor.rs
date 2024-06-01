@@ -1,7 +1,10 @@
 use std::{collections::btree_map::Entry, fmt};
 use tracing_core::field;
 
-use crate::layer::JsonFields;
+#[cfg(feature = "tracing-log")]
+use tracing_log::NormalizeEvent;
+
+use crate::fields::JsonFields;
 
 /// The [visitor] produced by [`JsonFields`]'s [`MakeVisitor`] implementation.
 ///
@@ -22,12 +25,12 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.formatted = None;
+                self.0.version += 1;
                 vacant.insert(value);
             }
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
-                    self.0.formatted = None;
+                    self.0.version += 1;
                 }
                 entry.insert(value);
             }
@@ -40,12 +43,12 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.formatted = None;
+                self.0.version += 1;
                 vacant.insert(value);
             }
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
-                    self.0.formatted = None;
+                    self.0.version += 1;
                 }
                 entry.insert(value);
             }
@@ -58,12 +61,12 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.formatted = None;
+                self.0.version += 1;
                 vacant.insert(value);
             }
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
-                    self.0.formatted = None;
+                    self.0.version += 1;
                 }
                 entry.insert(value);
             }
@@ -76,12 +79,12 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.formatted = None;
+                self.0.version += 1;
                 vacant.insert(value);
             }
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
-                    self.0.formatted = None;
+                    self.0.version += 1;
                 }
                 entry.insert(value);
             }
@@ -96,12 +99,12 @@ impl<'a> field::Visit for JsonVisitor<'a> {
         let entry = self.0.fields.entry(field.name());
         match entry {
             Entry::Vacant(vacant) => {
-                self.0.formatted = None;
+                self.0.version += 1;
                 vacant.insert(serde_value());
             }
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
-                    self.0.formatted = None;
+                    self.0.version += 1;
                 }
                 entry.insert(serde_value());
             }

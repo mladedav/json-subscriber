@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt::Write, io};
+use std::{cell::{RefCell, RefMut}, fmt::Write, io};
 
 pub(crate) struct Cursor<'buf>(RefCell<&'buf mut String>);
 
@@ -21,6 +21,10 @@ impl io::Write for &Cursor<'_> {
 impl<'buf> Cursor<'buf> {
     pub fn new(inner: &'buf mut String) -> Self {
         Self(RefCell::new(inner))
+    }
+
+    pub fn inner_mut(&self) -> RefMut<'_, &'buf mut String> {
+        self.0.borrow_mut()
     }
 
     pub fn position(&self) -> usize {

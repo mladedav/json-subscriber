@@ -996,7 +996,7 @@ mod test {
         with_default(collector, producer);
 
         let buf = make_writer.buf();
-        let actual = std::str::from_utf8(&buf[..]).unwrap();
+        let actual = dbg!(std::str::from_utf8(&buf[..]).unwrap());
         assert_eq!(
             serde_json::from_str::<std::collections::HashMap<&str, serde_json::Value>>(expected)
                 .unwrap(),

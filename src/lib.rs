@@ -1,6 +1,7 @@
 pub mod builder;
 mod cursor;
 mod event;
+pub mod fields;
 pub mod fmt;
 pub mod layer;
 mod serde;

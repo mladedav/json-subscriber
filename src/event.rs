@@ -9,6 +9,7 @@ use serde::Serializer;
 use std::borrow::Cow;
 use std::fmt;
 use std::ops::Deref;
+use std::sync::Arc;
 use tracing::Metadata;
 use tracing_subscriber::registry::SpanRef;
 
@@ -76,7 +77,8 @@ where
                 event,
             };
 
-            let mut serialized_something = false;
+            let mut serialized_anything = false;
+            let mut serialized_anything_serde = false;
 
             let current_span = event_ref.parent_span();
 
@@ -85,12 +87,32 @@ where
                 else {
                     continue;
                 };
-                serialized_something = true;
                 match key {
                     SchemaKey::Static(key) => {
-                        serializer.serialize_entry(key, &value)?;
+                        match value {
+                            MaybeHack::Serde(value) => {
+                                if serialized_anything && !serialized_anything_serde {
+                                    writer.inner_mut().push(',');
+                                }
+                                serialized_anything = true;
+                                serialized_anything_serde = true;
+                                serializer.serialize_entry(key, &value)?
+                            }
+                            MaybeHack::Str(str) => {
+                                let mut writer = writer.inner_mut();
+                                if serialized_anything {
+                                    writer.push(',');
+                                }
+                                serialized_anything = true;
+                                writer.push('"');
+                                writer.push_str(key);
+                                writer.push_str("\":");
+                                writer.push_str(&str);
+                            }
+                        }
                     }
                     SchemaKey::Flatten => {
+                        let value = value.unwrap();
                         let map = value.as_object().unwrap();
                         for (key, value) in map {
                             serializer.serialize_entry(key, value)?;
@@ -112,24 +134,40 @@ fn resolve_json_value<'a, S: for<'lookup> LookupSpan<'lookup>>(
     value: &'a JsonValue<S>,
     event: &EventRef<'_, S>,
     span: Option<&SpanRef<'_, S>>,
-) -> Option<Cow<'a, serde_json::Value>> {
+) -> Option<MaybeHack<'a>> {
     match value {
-        JsonValue::Serde(value) => Some(Cow::Borrowed(value)),
+        JsonValue::Serde(value) => Some(Cow::Borrowed(value)).map(MaybeHack::Serde),
         JsonValue::Struct(map) => Some(Cow::Owned(serde_json::Value::Object(
             serde_json::Map::from_iter(map.iter().filter_map(|(key, value)| {
                 Some((
                     key.to_string(),
-                    resolve_json_value(value, event, span)?.into_owned(),
+                    resolve_json_value(value, event, span)?.unwrap().into_owned(),
                 ))
-            })),
-        ))),
+            }))
+        ))).map(MaybeHack::Serde),
         JsonValue::Array(array) => Some(Cow::Owned(serde_json::Value::Array(
             array
                 .iter()
-                .filter_map(|value| resolve_json_value(value, event, span).map(Cow::into_owned))
+                .filter_map(|value| resolve_json_value(value, event, span).map(MaybeHack::unwrap).map(Cow::into_owned))
                 .collect(),
-        ))),
-        JsonValue::DynamicFromEvent(fun) => fun(event).map(Value::to_json).map(Cow::Owned),
-        JsonValue::DynamicFromSpan(fun) => span.and_then(fun).map(Value::to_json).map(Cow::Owned),
+        ))).map(MaybeHack::Serde),
+        JsonValue::DynamicFromEvent(fun) => fun(event).map(Value::to_json).map(Cow::Owned).map(MaybeHack::Serde),
+        JsonValue::DynamicFromSpan(fun) => span.and_then(fun).map(Value::to_json).map(Cow::Owned).map(MaybeHack::Serde),
+        JsonValue::DynamicCachedFromSpan(fun) => span.and_then(fun).map(MaybeHack::Str),
+    }
+}
+
+enum MaybeHack<'a> {
+    Serde(Cow<'a, serde_json::Value>),
+    Str(Arc<str>),
+}
+
+impl<'a> MaybeHack<'a> {
+    #[deprecated]
+    fn unwrap(self) -> Cow<'a, serde_json::Value> {
+        match self {
+            MaybeHack::Serde(serde) => serde,
+            MaybeHack::Str(_) => todo!(),
+        }
     }
 }

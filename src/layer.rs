@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, io};
+use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, io, sync::Arc};
 
 use serde::Serialize;
 use tracing_core::{
@@ -13,42 +13,16 @@ use tracing_subscriber::{
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::{event::EventRef, value::Value, visitor::JsonVisitor};
-
-#[derive(Default, Debug)]
-pub struct JsonFields {
-    pub(crate) fields: BTreeMap<&'static str, serde_json::Value>,
-    pub(crate) formatted: Option<String>,
-}
-
-impl serde::Serialize for JsonFields {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeMap;
-        let mut serializer = serializer.serialize_map(Some(self.fields.len()))?;
-
-        for (key, value) in &self.fields {
-            serializer.serialize_entry(key, value)?;
-        }
-
-        serializer.end()
-    }
-}
-
-impl JsonFields {
-    pub fn fields(&self) -> &BTreeMap<&'static str, serde_json::Value> {
-        &self.fields
-    }
-}
+use crate::{event::EventRef, fields::JsonFields, value::Value, visitor::JsonVisitor};
 
 pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
-    pub(crate) make_writer: W,
-
-    pub(crate) log_internal_errors: bool,
-
+    make_writer: W,
+    log_internal_errors: bool,
     pub(crate) schema: BTreeMap<SchemaKey, JsonValue<S>>,
+}
+
+struct SerializedCache {
+    inner: BTreeMap<SchemaKey, (usize, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -83,6 +57,9 @@ pub enum JsonValue<S> {
     #[allow(clippy::type_complexity)]
     DynamicFromEvent(Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
     DynamicFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
+    DynamicCachedFromSpan(
+        Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Arc<str>> + Send + Sync>,
+    ),
 }
 
 impl<S, W> Layer<S> for JsonLayer<S, W>
@@ -107,6 +84,8 @@ where
             fields
                 .fields
                 .insert("name", serde_json::Value::from(attrs.metadata().name()));
+            let serialized = serde_json::to_string(&fields).unwrap();
+            fields.serialized = Some(Arc::from(serialized.as_str()));
             extensions.insert(fields);
         } else if self.log_internal_errors {
             eprintln!(
@@ -133,6 +112,8 @@ where
         };
 
         values.record(&mut JsonVisitor::new(fields));
+        let serialized = serde_json::to_string(&fields).unwrap();
+        fields.serialized = Some(Arc::from(serialized.as_str()));
     }
 
     fn on_enter(&self, _id: &Id, _ctx: Context<'_, S>) {}
@@ -357,6 +338,41 @@ where
         self.add_from_extension_ref(key, |extension: &Ext| Some(extension))
     }
 
+    // pub fn serialize_cachable_extension<Ext: CachableExtension + 'static>(
+    //     &mut self,
+    //     key: impl Into<Cow<'static, str>>,
+    // ) {
+    //     let key = SchemaKey::from(key.into());
+    //     self.schema.insert(
+    //         key.clone(),
+    //         JsonValue::DynamicFromSpan(Box::new(move |span| {
+    //             let mut extensions = span.extensions_mut();
+    //             let Some(extension) = extensions.get_mut::<Ext>() else {
+    //                 return None;
+    //             };
+    //             let current_version = extension.version();
+    //             let new_value = || serde_json::to_string(extension.value()).ok();
+
+    //             if let Some(cache) = extensions.get_mut::<SerializedCache>() {
+    //                 if let Some((cached_version, cached_value)) = cache.inner.get(&key) {
+    //                     if cached_version == &current_version {
+    //                         Some(Value::Serialized(cached_value))
+    //                     } else {
+    //                         let new_value = new_value()?;
+    //                         cache.inner.insert(key, (current_version, new_value));
+    //                         let value = cache.inner.get(&key).unwrap();
+    //                         Some(Value::Serialized(&value.1))
+    //                     }
+    //                 } else {
+    //                     todo!()
+    //                 }
+    //             } else {
+    //                 todo!()
+    //             }
+    //         })),
+    //     );
+    // }
+
     pub fn add_from_extension_ref<Ext, Fun, Res>(
         &mut self,
         key: impl Into<Cow<'static, str>>,
@@ -426,7 +442,14 @@ where
     /// See [`format::Json`]
     pub fn with_current_span(&mut self, display_current_span: bool) -> &mut Self {
         if display_current_span {
-            self.serialize_extension::<JsonFields>("span");
+            self.schema.insert(
+                SchemaKey::from("span"),
+                JsonValue::DynamicCachedFromSpan(Box::new(move |span| {
+                    span.extensions()
+                        .get::<JsonFields>()
+                        .map(|fields| fields.serialized.as_ref().unwrap().clone())
+                })),
+            );
         } else {
             self.schema.remove(&SchemaKey::from("span"));
         }
