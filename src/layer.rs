@@ -13,7 +13,7 @@ use tracing_subscriber::{
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::{event::EventRef, fields::JsonFields, value::Value, visitor::JsonVisitor};
+use crate::{cached::Cached, event::EventRef, fields::JsonFields, value::Value, visitor::JsonVisitor};
 
 pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
     make_writer: W,
@@ -58,7 +58,7 @@ pub enum JsonValue<S> {
     DynamicFromEvent(Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
     DynamicFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
     DynamicCachedFromSpan(
-        Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Arc<str>> + Send + Sync>,
+        Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Cached> + Send + Sync>,
     ),
 }
 
@@ -447,7 +447,7 @@ where
                 JsonValue::DynamicCachedFromSpan(Box::new(move |span| {
                     span.extensions()
                         .get::<JsonFields>()
-                        .map(|fields| fields.serialized.as_ref().unwrap().clone())
+                        .map(|fields| Cached::Raw(fields.serialized.as_ref().unwrap().clone()))
                 })),
             );
         } else {
@@ -464,19 +464,18 @@ where
         if display_span_list {
             self.schema.insert(
                 SchemaKey::from("spans"),
-                JsonValue::DynamicFromSpan(Box::new(|span| {
-                    serde_json::to_value(
+                JsonValue::DynamicCachedFromSpan(Box::new(|span| {
+                    Some(Cached::Array(
                         span.scope()
                             .from_root()
                             .map(|span| {
                                 span.extensions()
                                     .get::<JsonFields>()
-                                    .and_then(|fields| serde_json::to_value(fields).ok())
+                                    .map(|fields| fields.serialized.as_ref().unwrap().clone())
                             })
+                            .filter_map(std::convert::identity)
                             .collect::<Vec<_>>(),
-                    )
-                    .ok()
-                    .map(Value::SerdeJson)
+                    ))
                 })),
             );
         } else {

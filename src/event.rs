@@ -1,3 +1,4 @@
+use crate::cached::Cached;
 use crate::cursor::Cursor;
 use crate::layer::JsonLayer;
 use crate::layer::JsonValue;
@@ -98,7 +99,7 @@ where
                                 serialized_anything_serde = true;
                                 serializer.serialize_entry(key, &value)?
                             }
-                            MaybeHack::Str(str) => {
+                            MaybeHack::Cached(Cached::Raw(raw)) => {
                                 let mut writer = writer.inner_mut();
                                 if serialized_anything {
                                     writer.push(',');
@@ -107,7 +108,26 @@ where
                                 writer.push('"');
                                 writer.push_str(key);
                                 writer.push_str("\":");
-                                writer.push_str(&str);
+                                writer.push_str(&raw);
+                            }
+                            MaybeHack::Cached(Cached::Array(arr)) => {
+                                let mut writer = writer.inner_mut();
+                                if serialized_anything {
+                                    writer.push(',');
+                                }
+                                serialized_anything = true;
+                                writer.push('"');
+                                writer.push_str(key);
+                                writer.push_str("\":[");
+                                let mut first = true;
+                                for raw in arr {
+                                    if !first {
+                                        writer.push(',');
+                                    }
+                                    first = false;
+                                    writer.push_str(&raw);
+                                }
+                                writer.push(']');
                             }
                         }
                     }
@@ -153,13 +173,13 @@ fn resolve_json_value<'a, S: for<'lookup> LookupSpan<'lookup>>(
         ))).map(MaybeHack::Serde),
         JsonValue::DynamicFromEvent(fun) => fun(event).map(Value::to_json).map(Cow::Owned).map(MaybeHack::Serde),
         JsonValue::DynamicFromSpan(fun) => span.and_then(fun).map(Value::to_json).map(Cow::Owned).map(MaybeHack::Serde),
-        JsonValue::DynamicCachedFromSpan(fun) => span.and_then(fun).map(MaybeHack::Str),
+        JsonValue::DynamicCachedFromSpan(fun) => span.and_then(fun).map(MaybeHack::Cached),
     }
 }
 
 enum MaybeHack<'a> {
     Serde(Cow<'a, serde_json::Value>),
-    Str(Arc<str>),
+    Cached(Cached),
 }
 
 impl<'a> MaybeHack<'a> {
@@ -167,7 +187,7 @@ impl<'a> MaybeHack<'a> {
     fn unwrap(self) -> Cow<'a, serde_json::Value> {
         match self {
             MaybeHack::Serde(serde) => serde,
-            MaybeHack::Str(_) => todo!(),
+            MaybeHack::Cached(_) => todo!(),
         }
     }
 }

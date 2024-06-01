@@ -1,4 +1,5 @@
 pub mod builder;
+mod cached;
 mod cursor;
 mod event;
 pub mod fields;
