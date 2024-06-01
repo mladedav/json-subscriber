@@ -5,8 +5,8 @@ mod support;
 use support::MultithreadedBench;
 
 fn mk_dispatch() -> tracing::Dispatch {
-    // json_subscriber_dispatch()
-    tracing_subscriber_dispatch()
+    json_subscriber_dispatch()
+    // tracing_subscriber_dispatch()
 }
 
 fn json_subscriber_dispatch() -> tracing::Dispatch {
