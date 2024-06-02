@@ -13,16 +13,14 @@ use tracing_subscriber::{
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::{cached::Cached, event::EventRef, fields::JsonFields, value::Value, visitor::JsonVisitor};
+use crate::{
+    cached::Cached, event::EventRef, fields::JsonFields, value::Value, visitor::JsonVisitor,
+};
 
 pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
     make_writer: W,
     log_internal_errors: bool,
     pub(crate) schema: BTreeMap<SchemaKey, JsonValue<S>>,
-}
-
-struct SerializedCache {
-    inner: BTreeMap<SchemaKey, (usize, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -57,9 +55,7 @@ pub enum JsonValue<S> {
     #[allow(clippy::type_complexity)]
     DynamicFromEvent(Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
     DynamicFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
-    DynamicCachedFromSpan(
-        Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Cached> + Send + Sync>,
-    ),
+    DynamicCachedFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
 }
 
 impl<S, W> Layer<S> for JsonLayer<S, W>
@@ -468,12 +464,11 @@ where
                     Some(Cached::Array(
                         span.scope()
                             .from_root()
-                            .map(|span| {
+                            .flat_map(|span| {
                                 span.extensions()
                                     .get::<JsonFields>()
                                     .map(|fields| fields.serialized.as_ref().unwrap().clone())
                             })
-                            .filter_map(std::convert::identity)
                             .collect::<Vec<_>>(),
                     ))
                 })),

@@ -1,9 +1,6 @@
 use std::{collections::btree_map::Entry, fmt};
 use tracing_core::field;
 
-#[cfg(feature = "tracing-log")]
-use tracing_log::NormalizeEvent;
-
 use crate::fields::JsonFields;
 
 /// The [visitor] produced by [`JsonFields`]'s [`MakeVisitor`] implementation.
@@ -103,7 +100,7 @@ impl<'a> field::Visit for JsonVisitor<'a> {
                 vacant.insert(serde_value());
             }
             Entry::Occupied(mut entry) => {
-                if entry.get() != &value {
+                if entry.get() != value {
                     self.0.version += 1;
                 }
                 entry.insert(serde_value());

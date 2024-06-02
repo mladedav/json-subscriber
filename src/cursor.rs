@@ -1,4 +1,7 @@
-use std::{cell::{RefCell, RefMut}, fmt::Write, io};
+use std::{
+    cell::{RefCell, RefMut},
+    io,
+};
 
 pub(crate) struct Cursor<'buf>(RefCell<&'buf mut String>);
 
@@ -8,7 +11,7 @@ impl io::Write for &Cursor<'_> {
         let s =
             std::str::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        inner.write_str(s);
+        inner.push_str(s);
 
         Ok(s.as_bytes().len())
     }
@@ -25,9 +28,5 @@ impl<'buf> Cursor<'buf> {
 
     pub fn inner_mut(&self) -> RefMut<'_, &'buf mut String> {
         self.0.borrow_mut()
-    }
-
-    pub fn position(&self) -> usize {
-        self.0.borrow().len()
     }
 }

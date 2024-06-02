@@ -10,7 +10,6 @@ use serde::Serializer;
 use std::borrow::Cow;
 use std::fmt;
 use std::ops::Deref;
-use std::sync::Arc;
 use tracing::Metadata;
 use tracing_subscriber::registry::SpanRef;
 
@@ -89,50 +88,58 @@ where
                     continue;
                 };
                 match key {
-                    SchemaKey::Static(key) => {
-                        match value {
-                            MaybeHack::Serde(value) => {
-                                if serialized_anything && !serialized_anything_serde {
-                                    writer.inner_mut().push(',');
-                                }
-                                serialized_anything = true;
-                                serialized_anything_serde = true;
-                                serializer.serialize_entry(key, &value)?
+                    SchemaKey::Static(key) => match value {
+                        MaybeCached::Serde(value) => {
+                            if serialized_anything && !serialized_anything_serde {
+                                writer.inner_mut().push(',');
                             }
-                            MaybeHack::Cached(Cached::Raw(raw)) => {
-                                let mut writer = writer.inner_mut();
-                                if serialized_anything {
+                            serialized_anything = true;
+                            serialized_anything_serde = true;
+                            serializer.serialize_entry(key, &value)?
+                        }
+                        MaybeCached::Cached(Cached::Raw(raw)) => {
+                            debug_assert!(
+                                serde_json::to_value(&*raw).is_ok(),
+                                "[json-subscriber] provided cached value is not valid json: {}",
+                                raw,
+                            );
+                            let mut writer = writer.inner_mut();
+                            if serialized_anything {
+                                writer.push(',');
+                            }
+                            serialized_anything = true;
+                            writer.push('"');
+                            writer.push_str(key);
+                            writer.push_str("\":");
+                            writer.push_str(&raw);
+                        }
+                        MaybeCached::Cached(Cached::Array(arr)) => {
+                            let mut writer = writer.inner_mut();
+                            if serialized_anything {
+                                writer.push(',');
+                            }
+                            serialized_anything = true;
+                            writer.push('"');
+                            writer.push_str(key);
+                            writer.push_str("\":[");
+                            let mut first = true;
+                            for raw in arr {
+                                debug_assert!(
+                                    serde_json::to_value(&*raw).is_ok(),
+                                    "[json-subscriber] provided cached value in array is not valid json: {}",
+                                    raw,
+                                );
+                                if !first {
                                     writer.push(',');
                                 }
-                                serialized_anything = true;
-                                writer.push('"');
-                                writer.push_str(key);
-                                writer.push_str("\":");
+                                first = false;
                                 writer.push_str(&raw);
                             }
-                            MaybeHack::Cached(Cached::Array(arr)) => {
-                                let mut writer = writer.inner_mut();
-                                if serialized_anything {
-                                    writer.push(',');
-                                }
-                                serialized_anything = true;
-                                writer.push('"');
-                                writer.push_str(key);
-                                writer.push_str("\":[");
-                                let mut first = true;
-                                for raw in arr {
-                                    if !first {
-                                        writer.push(',');
-                                    }
-                                    first = false;
-                                    writer.push_str(&raw);
-                                }
-                                writer.push(']');
-                            }
+                            writer.push(']');
                         }
-                    }
+                    },
                     SchemaKey::Flatten => {
-                        let value = value.unwrap();
+                        let value = value.into_value();
                         let map = value.as_object().unwrap();
                         for (key, value) in map {
                             serializer.serialize_entry(key, value)?;
@@ -146,6 +153,13 @@ where
 
         visit().map_err(|_| fmt::Error)?;
         writer.push('\n');
+
+        debug_assert!(
+            serde_json::to_value(&*writer).is_ok(),
+            "[json-subscriber] serialized line is not valid json: {}",
+            writer,
+        );
+
         Ok(())
     }
 }
@@ -154,40 +168,60 @@ fn resolve_json_value<'a, S: for<'lookup> LookupSpan<'lookup>>(
     value: &'a JsonValue<S>,
     event: &EventRef<'_, S>,
     span: Option<&SpanRef<'_, S>>,
-) -> Option<MaybeHack<'a>> {
+) -> Option<MaybeCached<'a>> {
     match value {
-        JsonValue::Serde(value) => Some(Cow::Borrowed(value)).map(MaybeHack::Serde),
-        JsonValue::Struct(map) => Some(Cow::Owned(serde_json::Value::Object(
+        JsonValue::Serde(value) => Some(MaybeCached::Serde(Cow::Borrowed(value))),
+        JsonValue::Struct(map) => Some(MaybeCached::Serde(Cow::Owned(serde_json::Value::Object(
             serde_json::Map::from_iter(map.iter().filter_map(|(key, value)| {
                 Some((
                     key.to_string(),
-                    resolve_json_value(value, event, span)?.unwrap().into_owned(),
+                    resolve_json_value(value, event, span)?
+                        .into_value()
+                        .into_owned(),
                 ))
-            }))
-        ))).map(MaybeHack::Serde),
-        JsonValue::Array(array) => Some(Cow::Owned(serde_json::Value::Array(
+            })),
+        )))),
+        JsonValue::Array(array) => Some(MaybeCached::Serde(Cow::Owned(serde_json::Value::Array(
             array
                 .iter()
-                .filter_map(|value| resolve_json_value(value, event, span).map(MaybeHack::unwrap).map(Cow::into_owned))
+                .filter_map(|value| {
+                    resolve_json_value(value, event, span)
+                        .map(MaybeCached::into_value)
+                        .map(Cow::into_owned)
+                })
                 .collect(),
-        ))).map(MaybeHack::Serde),
-        JsonValue::DynamicFromEvent(fun) => fun(event).map(Value::to_json).map(Cow::Owned).map(MaybeHack::Serde),
-        JsonValue::DynamicFromSpan(fun) => span.and_then(fun).map(Value::to_json).map(Cow::Owned).map(MaybeHack::Serde),
-        JsonValue::DynamicCachedFromSpan(fun) => span.and_then(fun).map(MaybeHack::Cached),
+        )))),
+        JsonValue::DynamicFromEvent(fun) => fun(event)
+            .map(Value::into_json)
+            .map(Cow::Owned)
+            .map(MaybeCached::Serde),
+        JsonValue::DynamicFromSpan(fun) => span
+            .and_then(fun)
+            .map(Value::into_json)
+            .map(Cow::Owned)
+            .map(MaybeCached::Serde),
+        JsonValue::DynamicCachedFromSpan(fun) => span.and_then(fun).map(MaybeCached::Cached),
     }
 }
 
-enum MaybeHack<'a> {
+enum MaybeCached<'a> {
     Serde(Cow<'a, serde_json::Value>),
     Cached(Cached),
 }
 
-impl<'a> MaybeHack<'a> {
-    #[deprecated]
-    fn unwrap(self) -> Cow<'a, serde_json::Value> {
+impl<'a> MaybeCached<'a> {
+    fn into_value(self) -> Cow<'a, serde_json::Value> {
         match self {
-            MaybeHack::Serde(serde) => serde,
-            MaybeHack::Cached(_) => todo!(),
+            MaybeCached::Serde(serde) => serde,
+            MaybeCached::Cached(Cached::Raw(raw)) => {
+                Cow::Owned(serde_json::from_str(&raw).unwrap())
+            }
+            MaybeCached::Cached(Cached::Array(array)) => Cow::Owned(serde_json::Value::Array(
+                array
+                    .into_iter()
+                    .map(|raw| serde_json::from_str(&raw).unwrap())
+                    .collect(),
+            )),
         }
     }
 }
