@@ -1,5 +1,7 @@
-use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, io, sync::Arc};
+use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fmt, io, sync::Arc};
 
+use super::event::EventRef;
+use crate::{cached::Cached, fields::JsonFields, visitor::JsonVisitor};
 use serde::Serialize;
 use tracing_core::{
     span::{Attributes, Id, Record},
@@ -13,11 +15,7 @@ use tracing_subscriber::{
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::{
-    cached::Cached, event::EventRef, fields::JsonFields, value::Value, visitor::JsonVisitor,
-};
-
-pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
+pub struct CustomJsonLayer<S = Registry, W = fn() -> io::Stdout> {
     make_writer: W,
     log_internal_errors: bool,
     pub(crate) schema: BTreeMap<SchemaKey, JsonValue<S>>,
@@ -48,17 +46,22 @@ impl From<String> for SchemaKey {
     }
 }
 
-pub enum JsonValue<S> {
+pub(crate) enum JsonValue<S> {
     Serde(serde_json::Value),
-    Struct(BTreeMap<&'static str, JsonValue<S>>),
-    Array(Vec<JsonValue<S>>),
     #[allow(clippy::type_complexity)]
-    DynamicFromEvent(Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
-    DynamicFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Value<'a>> + Send + Sync>),
+    DynamicFromEvent(
+        Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>,
+    ),
+    DynamicFromSpan(
+        Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>,
+    ),
     DynamicCachedFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
+    DynamicRawFromEvent(
+        Box<dyn for<'a> Fn(&'a EventRef<'_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
+    ),
 }
 
-impl<S, W> Layer<S> for JsonLayer<S, W>
+impl<S, W> Layer<S> for CustomJsonLayer<S, W>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
     W: for<'writer> MakeWriter<'writer> + 'static,
@@ -158,7 +161,7 @@ where
     }
 }
 
-impl<S> JsonLayer<S>
+impl<S> CustomJsonLayer<S>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
@@ -171,7 +174,7 @@ where
     }
 }
 
-impl<S, W> JsonLayer<S, W>
+impl<S, W> CustomJsonLayer<S, W>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
@@ -194,11 +197,11 @@ where
     ///
     /// [`MakeWriter`]: super::writer::MakeWriter
     /// [`JsonLayer`]: super::JsonLayer
-    pub fn with_writer<W2>(self, make_writer: W2) -> JsonLayer<S, W2>
+    pub fn with_writer<W2>(self, make_writer: W2) -> CustomJsonLayer<S, W2>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
-        JsonLayer {
+        CustomJsonLayer {
             make_writer,
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
@@ -265,8 +268,8 @@ where
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
     /// [`TestWriter`]: super::writer::TestWriter
-    pub fn with_test_writer(self) -> JsonLayer<S, TestWriter> {
-        JsonLayer {
+    pub fn with_test_writer(self) -> CustomJsonLayer<S, TestWriter> {
+        CustomJsonLayer {
             make_writer: TestWriter::default(),
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
@@ -308,11 +311,11 @@ where
     /// # use tracing_subscriber::Subscribe as _;
     /// # let _ = subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
-    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> JsonLayer<S, W2>
+    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> CustomJsonLayer<S, W2>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
-        JsonLayer {
+        CustomJsonLayer {
             make_writer: f(self.make_writer),
             log_internal_errors: self.log_internal_errors,
             schema: self.schema,
@@ -386,7 +389,6 @@ where
                     .and_then(&mapper)
                     .map(serde_json::to_value)
                     .and_then(Result::ok)
-                    .map(Value::SerdeJson)
             })),
         );
     }
@@ -408,7 +410,6 @@ where
                     .and_then(&mapper)
                     .map(serde_json::to_value)
                     .and_then(Result::ok)
-                    .map(Value::SerdeJson)
             })),
         );
     }
@@ -418,9 +419,7 @@ where
     /// See [`format::Json`]
     pub fn flatten_event(&mut self, flatten_event: bool) -> &mut Self {
         let fields = JsonValue::DynamicFromEvent(Box::new(|event| {
-            serde_json::to_value(event.field_map())
-                .ok()
-                .map(Value::SerdeJson)
+            serde_json::to_value(event.field_map()).ok()
         }));
         if flatten_event {
             self.schema.insert(SchemaKey::Flatten, fields);
@@ -500,7 +499,7 @@ where
                 let mut timestamp = String::with_capacity(32);
                 timer.format_time(&mut Writer::new(&mut timestamp)).ok()?;
 
-                Some(Value::SerdeJson(timestamp.into()))
+                Some(timestamp.into())
             })),
         );
         self
@@ -517,8 +516,10 @@ where
         if display_target {
             self.schema.insert(
                 SchemaKey::from("target"),
-                JsonValue::DynamicFromEvent(Box::new(|event| {
-                    Some(Value::Str(event.metadata().target()))
+                JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
+                    writer.write_str("\"")?;
+                    writer.write_str(event.metadata().target())?;
+                    writer.write_str("\"")
                 })),
             );
         } else {
@@ -536,8 +537,16 @@ where
         if display_filename {
             self.schema.insert(
                 SchemaKey::from("filename"),
-                JsonValue::DynamicFromEvent(Box::new(|event| {
-                    event.metadata().file().map(Value::Str)
+                JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
+                    event
+                        .metadata()
+                        .file()
+                        .map(|file| {
+                            writer.write_str("\"")?;
+                            writer.write_str(file)?;
+                            writer.write_str("\"")
+                        })
+                        .unwrap_or(Ok(()))
                 })),
             );
         } else {
@@ -554,12 +563,12 @@ where
         if display_line_number {
             self.schema.insert(
                 SchemaKey::from("line_number"),
-                JsonValue::DynamicFromEvent(Box::new(|event| {
+                JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
                     event
                         .metadata()
                         .line()
-                        .map(Into::into)
-                        .map(Value::SerdeJson)
+                        .map(|file| write!(writer, "{}", file))
+                        .unwrap_or(Ok(()))
                 })),
             );
         } else {
@@ -573,8 +582,10 @@ where
         if display_level {
             self.schema.insert(
                 SchemaKey::from("level"),
-                JsonValue::DynamicFromEvent(Box::new(|event| {
-                    Some(Value::Str(event.metadata().level().as_str()))
+                JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
+                    writer.write_str("\"")?;
+                    writer.write_str(event.metadata().level().as_str())?;
+                    writer.write_str("\"")
                 })),
             );
         } else {
@@ -591,13 +602,16 @@ where
         if display_thread_name {
             self.schema.insert(
                 SchemaKey::from("threadName"),
-                JsonValue::Serde(
+                JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
                     std::thread::current()
                         .name()
-                        .map(ToOwned::to_owned)
-                        .map(serde_json::Value::String)
-                        .unwrap_or(serde_json::Value::Null),
-                ),
+                        .map(|name| {
+                            writer.write_str("\"")?;
+                            writer.write_str(name)?;
+                            writer.write_str("\"")
+                        })
+                        .unwrap_or(Ok(()))
+                })),
             );
         } else {
             self.schema.remove(&SchemaKey::from("threadName"));
@@ -613,10 +627,11 @@ where
         if display_thread_id {
             self.schema.insert(
                 SchemaKey::from("threadId"),
-                JsonValue::Serde(serde_json::Value::String(format!(
-                    "{:?}",
-                    std::thread::current().id()
-                ))),
+                JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
+                    writer.write_str("\"")?;
+                    write!(writer, "{:?}", std::thread::current().id())?;
+                    writer.write_str("\"")
+                })),
             );
         } else {
             self.schema.remove(&SchemaKey::from("threadId"));

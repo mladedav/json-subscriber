@@ -80,7 +80,7 @@ pub fn layer<S>() -> JsonLayer<S>
 where
     S: Collect + for<'lookup> LookupSpan<'lookup>,
 {
-    SubscriberBuilder::default().layers().0
+    JsonLayer::default()
 }
 
 pub struct Subscriber;

@@ -12,7 +12,7 @@ use tracing_subscriber::{
     reload, Layer, Registry,
 };
 
-use crate::layer::JsonLayer;
+use crate::layer::CustomJsonLayer;
 
 /// Configures and constructs `Subscriber`s.
 ///
@@ -123,15 +123,15 @@ impl<W, T, F> SubscriberBuilder<W, T, F>
 where
     W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
     T: FormatTime + Send + Sync + 'static,
-    F: Layer<Layered<JsonLayer<Registry, W>, Registry>> + 'static,
-    Layered<F, Layered<JsonLayer<Registry, W>, Registry>>:
+    F: Layer<Layered<CustomJsonLayer<Registry, W>, Registry>> + 'static,
+    Layered<F, Layered<CustomJsonLayer<Registry, W>, Registry>>:
         tracing_core::Subscriber + Into<Dispatch>,
 {
-    pub(crate) fn layers<S>(self) -> (JsonLayer<S, W>, F)
+    pub(crate) fn layers<S>(self) -> (CustomJsonLayer<S, W>, F)
     where
         S: Subscriber + for<'lookup> LookupSpan<'lookup>,
     {
-        let mut layer = JsonLayer::<S>::empty().with_writer(self.make_writer);
+        let mut layer = CustomJsonLayer::<S>::empty().with_writer(self.make_writer);
 
         if self.display_timestamp {
             layer.with_timer(self.timer);
@@ -154,7 +154,7 @@ where
     /// Finish the builder, returning a new [`Subscriber`] which can be used to [lookup spans].
     ///
     /// [lookup spans]: LookupSpan
-    pub fn finish(self) -> Layered<F, Layered<JsonLayer<Registry, W>, Registry>> {
+    pub fn finish(self) -> Layered<F, Layered<CustomJsonLayer<Registry, W>, Registry>> {
         let (json_layer, filter_layer) = self.layers();
         tracing_subscriber::registry()
             .with(json_layer)
@@ -737,6 +737,8 @@ impl<W, T, F> SubscriberBuilder<W, T, reload::Layer<F, Registry>> {
 
 #[cfg(test)]
 mod test {
+    //! These tests are copied from `tracing-subscriber` for compatibility.
+
     use std::path::Path;
 
     use tracing_core::Dispatch;
@@ -746,7 +748,7 @@ mod test {
 
     use super::SubscriberBuilder;
     use crate::{
-        layer::JsonLayer,
+        layer::CustomJsonLayer,
         tests::{MockMakeWriter, MockTime},
     };
 
@@ -1045,7 +1047,7 @@ mod test {
     fn subscriber_downcasts_to_parts() {
         let subscriber = SubscriberBuilder::default().finish();
         let dispatch = Dispatch::new(subscriber);
-        assert!(dispatch.downcast_ref::<JsonLayer>().is_some());
+        assert!(dispatch.downcast_ref::<CustomJsonLayer>().is_some());
         assert!(dispatch.downcast_ref::<LevelFilter>().is_some());
     }
 

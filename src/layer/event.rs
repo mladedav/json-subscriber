@@ -1,10 +1,7 @@
-use crate::cached::Cached;
+use crate::{cached::Cached, layer::custom::SchemaKey};
 use crate::cursor::Cursor;
-use crate::layer::JsonLayer;
-use crate::layer::JsonValue;
-use crate::layer::SchemaKey;
+use crate::layer::CustomJsonLayer;
 use crate::serde::JsonSubscriberFormatter;
-use crate::value::Value;
 use serde::ser::SerializeMap;
 use serde::Serializer;
 use std::borrow::Cow;
@@ -18,6 +15,8 @@ use tracing_subscriber::{layer::Context, registry::LookupSpan};
 
 #[cfg(feature = "tracing-log")]
 use tracing_log::NormalizeEvent;
+
+use super::custom::JsonValue;
 
 /// The same thing as [`SpanRef`] but for events.
 pub struct EventRef<'a, R> {
@@ -55,7 +54,7 @@ impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
     }
 }
 
-impl<S, W> JsonLayer<S, W>
+impl<S, W> CustomJsonLayer<S, W>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
@@ -137,6 +136,31 @@ where
                             }
                             writer.push(']');
                         }
+                        MaybeCached::Raw(raw_fun) => {
+                            let mut writer = writer.inner_mut();
+                            let rollback_position = writer.len();
+                            if serialized_anything {
+                                writer.push(',');
+                            }
+                            writer.push('"');
+                            writer.push_str(key);
+                            writer.push_str("\":");
+                            let start_position = writer.len();
+                            match raw_fun(&event_ref, &mut *writer) {
+                                Ok(()) => {
+                                    debug_assert!(
+                                serde_json::to_value(&writer[start_position..]).is_ok(),
+                                "[json-subscriber] raw value factory created invalid json: {}",
+                                &writer[start_position..],
+                            );
+                                    serialized_anything = true;
+                                }
+                                Err(error) => {
+                                    eprintln!("[json-subscriber] unable to format raw value to string: {error}");
+                                    writer.truncate(rollback_position);
+                                }
+                            }
+                        }
                     },
                     SchemaKey::Flatten => {
                         let value = value.into_value();
@@ -168,48 +192,25 @@ fn resolve_json_value<'a, S: for<'lookup> LookupSpan<'lookup>>(
     value: &'a JsonValue<S>,
     event: &EventRef<'_, S>,
     span: Option<&SpanRef<'_, S>>,
-) -> Option<MaybeCached<'a>> {
+) -> Option<MaybeCached<'a, S>> {
     match value {
         JsonValue::Serde(value) => Some(MaybeCached::Serde(Cow::Borrowed(value))),
-        JsonValue::Struct(map) => Some(MaybeCached::Serde(Cow::Owned(serde_json::Value::Object(
-            serde_json::Map::from_iter(map.iter().filter_map(|(key, value)| {
-                Some((
-                    key.to_string(),
-                    resolve_json_value(value, event, span)?
-                        .into_value()
-                        .into_owned(),
-                ))
-            })),
-        )))),
-        JsonValue::Array(array) => Some(MaybeCached::Serde(Cow::Owned(serde_json::Value::Array(
-            array
-                .iter()
-                .filter_map(|value| {
-                    resolve_json_value(value, event, span)
-                        .map(MaybeCached::into_value)
-                        .map(Cow::into_owned)
-                })
-                .collect(),
-        )))),
-        JsonValue::DynamicFromEvent(fun) => fun(event)
-            .map(Value::into_json)
-            .map(Cow::Owned)
-            .map(MaybeCached::Serde),
-        JsonValue::DynamicFromSpan(fun) => span
-            .and_then(fun)
-            .map(Value::into_json)
-            .map(Cow::Owned)
-            .map(MaybeCached::Serde),
+        JsonValue::DynamicFromEvent(fun) => fun(event).map(Cow::Owned).map(MaybeCached::Serde),
+        JsonValue::DynamicFromSpan(fun) => {
+            span.and_then(fun).map(Cow::Owned).map(MaybeCached::Serde)
+        }
         JsonValue::DynamicCachedFromSpan(fun) => span.and_then(fun).map(MaybeCached::Cached),
+        JsonValue::DynamicRawFromEvent(fun) => Some(MaybeCached::Raw(fun)),
     }
 }
 
-enum MaybeCached<'a> {
+enum MaybeCached<'a, S> {
     Serde(Cow<'a, serde_json::Value>),
     Cached(Cached),
+    Raw(&'a Box<dyn Fn(&EventRef<'_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>),
 }
 
-impl<'a> MaybeCached<'a> {
+impl<'a, S> MaybeCached<'a, S> {
     fn into_value(self) -> Cow<'a, serde_json::Value> {
         match self {
             MaybeCached::Serde(serde) => serde,
@@ -222,6 +223,7 @@ impl<'a> MaybeCached<'a> {
                     .map(|raw| serde_json::from_str(&raw).unwrap())
                     .collect(),
             )),
+            MaybeCached::Raw(_) => todo!(),
         }
     }
 }
