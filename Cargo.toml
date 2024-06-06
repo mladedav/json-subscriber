@@ -24,6 +24,9 @@ tracing-subscriber = { version = "0.3.18", default-features = false, features = 
 
 [dev-dependencies]
 criterion = { version = "0.3.6", default-features = false }
+snafu = "0.6.10"
+thiserror = "1.0.31"
+tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["json"] }
 
 [lib]
