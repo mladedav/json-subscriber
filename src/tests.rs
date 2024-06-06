@@ -1,5 +1,6 @@
 use std::{
-    fmt, io,
+    fmt,
+    io,
     sync::{Arc, Mutex, MutexGuard, TryLockError},
 };
 

@@ -18,7 +18,7 @@ use crate::{builder::SubscriberBuilder, layer::JsonLayer};
 /// Configuring the output format:
 ///
 /// ```rust
-///
+/// 
 /// json_subscriber::fmt()
 ///     // Configure formatting settings.
 ///     .with_target(false)

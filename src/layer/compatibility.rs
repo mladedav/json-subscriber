@@ -4,10 +4,12 @@ use tracing::Subscriber;
 use tracing_subscriber::{
     fmt::{
         time::{FormatTime, SystemTime},
-        MakeWriter, TestWriter,
+        MakeWriter,
+        TestWriter,
     },
     registry::LookupSpan,
-    Layer, Registry,
+    Layer,
+    Registry,
 };
 
 use super::CustomJsonLayer;
@@ -375,9 +377,8 @@ mod tests {
     use tracing::subscriber::with_default;
     use tracing_subscriber::{registry, Layer, Registry};
 
-    use crate::tests::{MockMakeWriter, MockTime};
-
     use super::JsonLayer;
+    use crate::tests::{MockMakeWriter, MockTime};
 
     fn test_json<W, T>(
         expected: serde_json::Value,
@@ -480,6 +481,7 @@ mod tests {
         // This probably should not work like this. But it's an open question how it *should* work.
 
         // Notice that there is `level` twice so this is not a valid JSON.
+        #[rustfmt::skip]
         let expected = "{\"level\":\"INFO\",\"timestamp\":\"fake time\",\"level\":\"this is a bug\",\"message\":\"some json test\"}\n";
 
         let layer = JsonLayer::default()

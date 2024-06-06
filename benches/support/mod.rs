@@ -4,6 +4,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
 use tracing::Dispatch;
 
 #[derive(Clone)]

@@ -1,19 +1,22 @@
 use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fmt, io, sync::Arc};
 
-use super::event::EventRef;
-use crate::{cached::Cached, fields::JsonFields, visitor::JsonVisitor};
 use serde::Serialize;
 use tracing_core::{
     span::{Attributes, Id, Record},
-    Event, Subscriber,
+    Event,
+    Subscriber,
 };
 use tracing_serde::fields::AsMap;
 use tracing_subscriber::{
     fmt::{format::Writer, time::FormatTime, MakeWriter, TestWriter},
-    registry::SpanRef,
+    layer::Context,
+    registry::{LookupSpan, SpanRef},
+    Layer,
     Registry,
 };
-use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
+
+use super::event::EventRef;
+use crate::{cached::Cached, fields::JsonFields, visitor::JsonVisitor};
 
 pub struct CustomJsonLayer<S = Registry, W = fn() -> io::Stdout> {
     make_writer: W,
@@ -24,8 +27,6 @@ pub struct CustomJsonLayer<S = Registry, W = fn() -> io::Stdout> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SchemaKey {
     Static(Cow<'static, str>),
-    // TODO this doesn't work because we'd have just a single flatten field
-    Flatten,
 }
 
 impl From<Cow<'static, str>> for SchemaKey {
@@ -46,14 +47,20 @@ impl From<String> for SchemaKey {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct DynamicJsonValue {
+    pub(crate) flatten: bool,
+    pub(crate) value: serde_json::Value,
+}
+
 pub(crate) enum JsonValue<S> {
-    Serde(serde_json::Value),
+    Serde(DynamicJsonValue),
     #[allow(clippy::type_complexity)]
     DynamicFromEvent(
-        Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>,
+        Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<DynamicJsonValue> + Send + Sync>,
     ),
     DynamicFromSpan(
-        Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>,
+        Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<DynamicJsonValue> + Send + Sync>,
     ),
     DynamicCachedFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
     DynamicRawFromEvent(
@@ -105,7 +112,10 @@ where
         let mut extensions = span.extensions_mut();
         let Some(fields) = extensions.get_mut::<JsonFields>() else {
             if self.log_internal_errors {
-                eprintln!("[json-subscriber] Span was created but does not contain formatted fields, this is a bug and some fields may have been lost.");
+                eprintln!(
+                    "[json-subscriber] Span was created but does not contain formatted fields, \
+                     this is a bug and some fields may have been lost."
+                );
             }
             return;
         };
@@ -134,26 +144,31 @@ where
                 Ok(buf) => {
                     a = buf;
                     &mut *a
-                }
+                },
                 _ => {
                     b = String::new();
                     &mut b
-                }
+                },
             };
 
-            if self.format_event(ctx, buf, event)
-                .is_ok()
-            {
+            if self.format_event(ctx, buf, event).is_ok() {
                 let mut writer = self.make_writer.make_writer_for(event.metadata());
                 let res = io::Write::write_all(&mut writer, buf.as_bytes());
                 if self.log_internal_errors {
                     if let Err(e) = res {
-                        eprintln!("[tracing-json] Unable to write an event to the Writer for this Subscriber! Error: {}\n", e);
+                        eprintln!(
+                            "[tracing-json] Unable to write an event to the Writer for this \
+                             Subscriber! Error: {}\n",
+                            e
+                        );
                     }
                 }
             } else if self.log_internal_errors {
-                eprintln!("[tracing-json] Unable to format the following event. Name: {}; Fields: {:?}",
-                    event.metadata().name(), event.fields());
+                eprintln!(
+                    "[tracing-json] Unable to format the following event. Name: {}; Fields: {:?}",
+                    event.metadata().name(),
+                    event.fields()
+                );
             }
 
             buf.clear();
@@ -337,41 +352,6 @@ where
         self.add_from_extension_ref(key, |extension: &Ext| Some(extension))
     }
 
-    // pub fn serialize_cachable_extension<Ext: CachableExtension + 'static>(
-    //     &mut self,
-    //     key: impl Into<Cow<'static, str>>,
-    // ) {
-    //     let key = SchemaKey::from(key.into());
-    //     self.schema.insert(
-    //         key.clone(),
-    //         JsonValue::DynamicFromSpan(Box::new(move |span| {
-    //             let mut extensions = span.extensions_mut();
-    //             let Some(extension) = extensions.get_mut::<Ext>() else {
-    //                 return None;
-    //             };
-    //             let current_version = extension.version();
-    //             let new_value = || serde_json::to_string(extension.value()).ok();
-
-    //             if let Some(cache) = extensions.get_mut::<SerializedCache>() {
-    //                 if let Some((cached_version, cached_value)) = cache.inner.get(&key) {
-    //                     if cached_version == &current_version {
-    //                         Some(Value::Serialized(cached_value))
-    //                     } else {
-    //                         let new_value = new_value()?;
-    //                         cache.inner.insert(key, (current_version, new_value));
-    //                         let value = cache.inner.get(&key).unwrap();
-    //                         Some(Value::Serialized(&value.1))
-    //                     }
-    //                 } else {
-    //                     todo!()
-    //                 }
-    //             } else {
-    //                 todo!()
-    //             }
-    //         })),
-    //     );
-    // }
-
     pub fn add_from_extension_ref<Ext, Fun, Res>(
         &mut self,
         key: impl Into<Cow<'static, str>>,
@@ -384,11 +364,11 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(move |span| {
-                span.extensions()
-                    .get::<Ext>()
-                    .and_then(&mapper)
-                    .map(serde_json::to_value)
-                    .and_then(Result::ok)
+                Some(DynamicJsonValue {
+                    flatten: false,
+                    value: serde_json::to_value(span.extensions().get::<Ext>().and_then(&mapper))
+                        .ok()?,
+                })
             })),
         );
     }
@@ -405,11 +385,11 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(move |span| {
-                span.extensions()
-                    .get::<Ext>()
-                    .and_then(&mapper)
-                    .map(serde_json::to_value)
-                    .and_then(Result::ok)
+                Some(DynamicJsonValue {
+                    flatten: false,
+                    value: serde_json::to_value(span.extensions().get::<Ext>().and_then(&mapper))
+                        .ok()?,
+                })
             })),
         );
     }
@@ -418,16 +398,15 @@ where
     ///
     /// See [`format::Json`]
     pub fn flatten_event(&mut self, flatten_event: bool) -> &mut Self {
-        let fields = JsonValue::DynamicFromEvent(Box::new(|event| {
-            serde_json::to_value(event.field_map()).ok()
-        }));
-        if flatten_event {
-            self.schema.insert(SchemaKey::Flatten, fields);
-            self.schema.remove(&SchemaKey::from("fields"));
-        } else {
-            self.schema.insert(SchemaKey::from("fields"), fields);
-            self.schema.remove(&SchemaKey::Flatten);
-        }
+        self.schema.insert(
+            SchemaKey::from("fields"),
+            JsonValue::DynamicFromEvent(Box::new(move |event| {
+                Some(DynamicJsonValue {
+                    flatten: flatten_event,
+                    value: serde_json::to_value(event.field_map()).ok()?,
+                })
+            })),
+        );
         self
     }
 
@@ -499,7 +478,10 @@ where
                 let mut timestamp = String::with_capacity(32);
                 timer.format_time(&mut Writer::new(&mut timestamp)).ok()?;
 
-                Some(timestamp.into())
+                Some(DynamicJsonValue {
+                    flatten: false,
+                    value: timestamp.into(),
+                })
             })),
         );
         self

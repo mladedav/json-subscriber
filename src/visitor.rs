@@ -1,4 +1,5 @@
 use std::{collections::btree_map::Entry, fmt};
+
 use tracing_core::field;
 
 use crate::fields::JsonFields;
@@ -24,13 +25,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
             Entry::Vacant(vacant) => {
                 self.0.version += 1;
                 vacant.insert(value);
-            }
+            },
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
                     self.0.version += 1;
                 }
                 entry.insert(value);
-            }
+            },
         }
     }
 
@@ -42,13 +43,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
             Entry::Vacant(vacant) => {
                 self.0.version += 1;
                 vacant.insert(value);
-            }
+            },
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
                     self.0.version += 1;
                 }
                 entry.insert(value);
-            }
+            },
         }
     }
 
@@ -60,13 +61,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
             Entry::Vacant(vacant) => {
                 self.0.version += 1;
                 vacant.insert(value);
-            }
+            },
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
                     self.0.version += 1;
                 }
                 entry.insert(value);
-            }
+            },
         }
     }
 
@@ -78,13 +79,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
             Entry::Vacant(vacant) => {
                 self.0.version += 1;
                 vacant.insert(value);
-            }
+            },
             Entry::Occupied(mut entry) => {
                 if entry.get() != &value {
                     self.0.version += 1;
                 }
                 entry.insert(value);
-            }
+            },
         }
     }
 
@@ -98,13 +99,13 @@ impl<'a> field::Visit for JsonVisitor<'a> {
             Entry::Vacant(vacant) => {
                 self.0.version += 1;
                 vacant.insert(serde_value());
-            }
+            },
             Entry::Occupied(mut entry) => {
                 if entry.get() != value {
                     self.0.version += 1;
                 }
                 entry.insert(serde_value());
-            }
+            },
         }
     }
 
@@ -117,12 +118,12 @@ impl<'a> field::Visit for JsonVisitor<'a> {
                 self.0
                     .fields
                     .insert(&name[2..], serde_json::Value::from(format!("{:?}", value)));
-            }
+            },
             name => {
                 self.0
                     .fields
                     .insert(name, serde_json::Value::from(format!("{:?}", value)));
-            }
+            },
         };
     }
 }
