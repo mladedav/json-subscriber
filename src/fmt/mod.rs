@@ -3,11 +3,10 @@
 
 use std::error::Error;
 
-use tracing::Subscriber as Collect;
-use tracing_subscriber::{registry::LookupSpan, util::SubscriberInitExt};
-
 pub use builder::SubscriberBuilder;
 pub use layer::Layer;
+use tracing::Subscriber as Collect;
+use tracing_subscriber::{registry::LookupSpan, util::SubscriberInitExt};
 
 mod builder;
 mod layer;

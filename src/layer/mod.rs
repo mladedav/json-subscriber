@@ -56,9 +56,9 @@ pub(crate) struct DynamicJsonValue {
     pub(crate) value: serde_json::Value,
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) enum JsonValue<S> {
     Serde(DynamicJsonValue),
-    #[allow(clippy::type_complexity)]
     DynamicFromEvent(
         Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<DynamicJsonValue> + Send + Sync>,
     ),
@@ -367,7 +367,7 @@ where
     ///         "hostname": get_hostname(),
     ///     }),
     /// );
-    /// 
+    ///
     /// registry().with(layer);
     /// # fn get_hostname() -> &'static str { "localhost" }
     /// ```
@@ -400,7 +400,7 @@ where
     ///     serde_json::json!("accident"),
     /// );
     /// layer.remove_field("deleteMe");
-    /// 
+    ///
     /// registry().with(layer);
     /// ```
     pub fn remove_field(&mut self, key: impl Into<Cow<'static, str>>) {
@@ -409,7 +409,7 @@ where
 
     /// Adds a field with a given key to the output. The value will be serialized JSON of the
     /// provided extension. Other [`Layer`]s may add these extensions to the span.
-    /// 
+    ///
     /// The serialization happens every time a log line is emitted so if the extension changes, the
     /// latest version will be emitted.
     ///
@@ -443,10 +443,10 @@ where
     ///
     /// # fn main() {
     /// let foo_layer = FooLayer;
-    /// 
+    ///
     /// let mut layer = json_subscriber::JsonLayer::stdout();
     /// layer.serialize_extension::<Foo>("foo");
-    /// 
+    ///
     /// registry().with(foo_layer).with(layer);
     /// # }
     /// ```
@@ -465,7 +465,7 @@ where
     ///
     /// If the extension is not found, or the mapping returns `None`, nothing is added to the
     /// output.
-    /// 
+    ///
     /// Use [`Self::add_from_extension`] if you cannot return a reference.
     ///
     /// # Examples
@@ -496,10 +496,10 @@ where
     ///
     /// # fn main() {
     /// let foo_layer = FooLayer;
-    /// 
+    ///
     /// let mut layer = json_subscriber::JsonLayer::stdout();
     /// layer.add_from_extension_ref::<Foo, _, _>("foo", |foo| Some(&foo.0));
-    /// 
+    ///
     /// registry().with(foo_layer).with(layer);
     /// # }
     /// ```
@@ -533,7 +533,7 @@ where
     ///
     /// If the extension is not found, or the mapping returns `None`, nothing is added to the
     /// output.
-    /// 
+    ///
     /// Use [`Self::add_from_extension_ref`] if you want to return a reference to data in the
     /// extension.
     ///
@@ -565,10 +565,10 @@ where
     ///
     /// # fn main() {
     /// let foo_layer = FooLayer;
-    /// 
+    ///
     /// let mut layer = json_subscriber::JsonLayer::stdout();
     /// layer.add_from_extension::<Foo, _, _>("foo", |foo| foo.0.parse::<u64>().ok());
-    /// 
+    ///
     /// registry().with(foo_layer).with(layer);
     /// # }
     /// ```
@@ -596,7 +596,7 @@ where
 
     /// Print all event fields in an object with the key `fields` if the argument is `false`, or
     /// flatten all the fields on top level of the JSON log line if set to `true`.
-    /// 
+    ///
     /// If set to `true`, it is the user's responsibility to make sure that the field names will not
     /// clash with other defined fields. If they clash, invalid JSON with multiple fields with the
     /// same key may be generated.

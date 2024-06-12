@@ -12,7 +12,7 @@ use tracing_subscriber::{
 use crate::{
     cached::Cached,
     cursor::Cursor,
-    layer::{JsonLayer, DynamicJsonValue, JsonValue, SchemaKey},
+    layer::{DynamicJsonValue, JsonLayer, JsonValue, SchemaKey},
     serde::JsonSubscriberFormatter,
 };
 
@@ -32,6 +32,7 @@ impl<'a, R> Deref for EventRef<'a, R> {
 
 impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
     /// Returns the span's name,
+    #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
         self.event.metadata().name()
     }
@@ -216,6 +217,7 @@ fn resolve_json_value<'a, S: for<'lookup> LookupSpan<'lookup>>(
     }
 }
 
+#[allow(clippy::type_complexity)]
 enum MaybeCached<'a, S> {
     Serde(Cow<'a, DynamicJsonValue>),
     Cached(Cached),

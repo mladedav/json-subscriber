@@ -1,5 +1,6 @@
-use snafu::{ResultExt, Snafu};
 use std::error::Error;
+
+use snafu::{ResultExt, Snafu};
 use thiserror::Error;
 use tracing::{debug, error, info, span, trace, warn, Level};
 

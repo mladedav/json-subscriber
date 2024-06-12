@@ -9,7 +9,5 @@ mod visitor;
 #[cfg(test)]
 mod tests;
 
-pub use fmt::fmt;
-pub use fmt::layer;
-
+pub use fmt::{fmt, layer};
 pub use layer::JsonLayer;

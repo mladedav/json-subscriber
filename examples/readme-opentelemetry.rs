@@ -8,8 +8,8 @@ fn main() {
     let exporter = opentelemetry_stdout::SpanExporter::builder()
         .with_writer(std::io::sink())
         .build();
-    let builder = opentelemetry_sdk::trace::TracerProvider::builder()
-        .with_simple_exporter(exporter);
+    let builder =
+        opentelemetry_sdk::trace::TracerProvider::builder().with_simple_exporter(exporter);
     let provider = builder.build();
     let tracer = provider
         .tracer_builder("opentelemetry-stdout-exporter")

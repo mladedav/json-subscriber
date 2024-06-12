@@ -15,7 +15,7 @@ use tracing_subscriber::{
 use crate::layer::JsonLayer;
 
 /// A [`Layer`] that logs JSON formatted representations of `tracing` events.
-/// 
+///
 /// This is just a wrapper around [`JsonLayer`] which exists for compatibility with
 /// `tracing_subscriber`.
 ///
@@ -408,7 +408,7 @@ where
 
     /// Wets whether or not [OpenTelemetry] trace ID and span ID is displayed when formatting
     /// events.
-    /// 
+    ///
     /// [OpenTelemetry]: https://opentelemetry.io
     #[cfg(feature = "opentelemetry")]
     pub fn with_opentelemetry_ids(mut self, display_opentelemetry_ids: bool) -> Self {
@@ -438,10 +438,7 @@ mod tests {
         );
     }
 
-    fn produce_log_line<W, T>(
-        layer: Layer<Registry, W>,
-        producer: impl FnOnce() -> T,
-    ) -> String {
+    fn produce_log_line<W, T>(layer: Layer<Registry, W>, producer: impl FnOnce() -> T) -> String {
         let make_writer = MockMakeWriter::default();
         let collector = layer
             .with_writer(make_writer.clone())
