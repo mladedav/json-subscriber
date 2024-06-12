@@ -12,12 +12,13 @@ fn mk_dispatch() -> tracing::Dispatch {
 
 fn json_subscriber_dispatch() -> tracing::Dispatch {
     let collector = json_subscriber::fmt::Subscriber::builder()
-        .json()
         .with_writer(sink)
         .finish();
     tracing::Dispatch::new(collector)
 }
 
+// This can be used to set a baseline to compare this implementation with.
+#[allow(dead_code)]
 fn tracing_subscriber_dispatch() -> tracing::Dispatch {
     let collector = tracing_subscriber::fmt::Subscriber::builder()
         .json()
