@@ -567,7 +567,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     }
 
     #[cfg(feature = "opentelemetry")]
-    pub fn with_opentelemetry_ids(mut self, display_opentelemetry_ids: bool) -> Self {
+    pub fn with_opentelemetry_ids(self, display_opentelemetry_ids: bool) -> Self {
         SubscriberBuilder {
             display_opentelemetry_ids,
             ..self
