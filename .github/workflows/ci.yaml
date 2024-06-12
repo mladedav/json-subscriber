@@ -99,7 +99,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v1
         with:
           command: check ${{ matrix.checks }}
-          manifest-path: axum/Cargo.toml
+          manifest-path: Cargo.toml
 
   typos:
     name: Spell Check with Typos
