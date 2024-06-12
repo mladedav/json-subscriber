@@ -1,9 +1,8 @@
-pub mod builder;
 mod cached;
 mod cursor;
 pub mod fields;
 pub mod fmt;
-pub mod layer;
+mod layer;
 mod serde;
 mod visitor;
 
@@ -11,3 +10,6 @@ mod visitor;
 mod tests;
 
 pub use fmt::fmt;
+pub use fmt::layer;
+
+pub use layer::JsonLayer;

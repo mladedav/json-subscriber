@@ -15,7 +15,7 @@ use tracing_subscriber::{
     Registry,
 };
 
-use crate::layer::CustomJsonLayer;
+use crate::layer::JsonLayer;
 
 /// Configures and constructs `Subscriber`s.
 ///
@@ -99,6 +99,8 @@ pub struct SubscriberBuilder<W = fn() -> io::Stdout, T = SystemTime, F = LevelFi
     flatten_event: bool,
     display_current_span: bool,
     display_span_list: bool,
+    #[cfg(feature = "opentelemetry")]
+    display_opentelemetry_ids: bool,
 }
 
 impl Default for SubscriberBuilder {
@@ -119,6 +121,8 @@ impl Default for SubscriberBuilder {
             flatten_event: false,
             display_current_span: true,
             display_span_list: true,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: false,
         }
     }
 }
@@ -127,15 +131,15 @@ impl<W, T, F> SubscriberBuilder<W, T, F>
 where
     W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
     T: FormatTime + Send + Sync + 'static,
-    F: Layer<Layered<CustomJsonLayer<Registry, W>, Registry>> + 'static,
-    Layered<F, Layered<CustomJsonLayer<Registry, W>, Registry>>:
+    F: Layer<Layered<JsonLayer<Registry, W>, Registry>> + 'static,
+    Layered<F, Layered<JsonLayer<Registry, W>, Registry>>:
         tracing_core::Subscriber + Into<Dispatch>,
 {
-    pub(crate) fn layers<S>(self) -> (CustomJsonLayer<S, W>, F)
+    pub(crate) fn layers<S>(self) -> (JsonLayer<S, W>, F)
     where
         S: Subscriber + for<'lookup> LookupSpan<'lookup>,
     {
-        let mut layer = CustomJsonLayer::<S>::empty().with_writer(self.make_writer);
+        let mut layer = JsonLayer::<S>::new(self.make_writer);
 
         if self.display_timestamp {
             layer.with_timer(self.timer);
@@ -158,7 +162,7 @@ where
     /// Finish the builder, returning a new [`Subscriber`] which can be used to [lookup spans].
     ///
     /// [lookup spans]: LookupSpan
-    pub fn finish(self) -> Layered<F, Layered<CustomJsonLayer<Registry, W>, Registry>> {
+    pub fn finish(self) -> Layered<F, Layered<JsonLayer<Registry, W>, Registry>> {
         let (json_layer, filter_layer) = self.layers();
         tracing_subscriber::registry()
             .with(json_layer)
@@ -240,6 +244,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
 
@@ -311,6 +317,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
 
@@ -361,6 +369,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
 
@@ -421,6 +431,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
 
@@ -441,6 +453,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
 
@@ -552,6 +566,14 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
         }
     }
 
+    #[cfg(feature = "opentelemetry")]
+    pub fn with_opentelemetry_ids(mut self, display_opentelemetry_ids: bool) -> Self {
+        SubscriberBuilder {
+            display_opentelemetry_ids,
+            ..self
+        }
+    }
+
     /// Sets the [`EnvFilter`] that the collector will use to determine if
     /// a span or event is enabled.
     ///
@@ -619,6 +641,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
 
@@ -670,6 +694,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
 
@@ -727,6 +753,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
+            #[cfg(feature = "opentelemetry")]
+            display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
 }
@@ -751,7 +779,7 @@ mod test {
 
     use super::SubscriberBuilder;
     use crate::{
-        layer::CustomJsonLayer,
+        layer::JsonLayer,
         tests::{MockMakeWriter, MockTime},
     };
 
@@ -1054,7 +1082,7 @@ mod test {
     fn subscriber_downcasts_to_parts() {
         let subscriber = SubscriberBuilder::default().finish();
         let dispatch = Dispatch::new(subscriber);
-        assert!(dispatch.downcast_ref::<CustomJsonLayer>().is_some());
+        assert!(dispatch.downcast_ref::<JsonLayer>().is_some());
         assert!(dispatch.downcast_ref::<LevelFilter>().is_some());
     }
 

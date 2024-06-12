@@ -9,11 +9,10 @@ use tracing_subscriber::{
     registry::{LookupSpan, SpanRef},
 };
 
-use super::custom::{DynamicJsonValue, JsonValue};
 use crate::{
     cached::Cached,
     cursor::Cursor,
-    layer::{custom::SchemaKey, CustomJsonLayer},
+    layer::{JsonLayer, DynamicJsonValue, JsonValue, SchemaKey},
     serde::JsonSubscriberFormatter,
 };
 
@@ -53,7 +52,7 @@ impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
     }
 }
 
-impl<S, W> CustomJsonLayer<S, W>
+impl<S, W> JsonLayer<S, W>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {

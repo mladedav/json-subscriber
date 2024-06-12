@@ -1,9 +1,16 @@
+//! This module only provides compatibility with `tracing-subscriber`. The methods here are just
+//! copies that only use different types for the [`Subscriber`] and [`SubscriberBuilder`].
+
 use std::error::Error;
 
 use tracing::Subscriber as Collect;
 use tracing_subscriber::{registry::LookupSpan, util::SubscriberInitExt};
 
-use crate::{builder::SubscriberBuilder, layer::JsonLayer};
+pub use builder::SubscriberBuilder;
+pub use layer::Layer;
+
+mod builder;
+mod layer;
 
 /// Returns a new [`SubscriberBuilder`] for configuring a json [formatting subscriber].
 ///
@@ -78,11 +85,11 @@ pub fn fmt() -> SubscriberBuilder {
 /// [json formatting layer]: JsonLayer
 /// [composed]: tracing_subscriber::layer
 /// [`Layer::default()`]: Layer::default
-pub fn layer<S>() -> JsonLayer<S>
+pub fn layer<S>() -> Layer<S>
 where
     S: Collect + for<'lookup> LookupSpan<'lookup>,
 {
-    JsonLayer::default()
+    Layer::default()
 }
 
 pub struct Subscriber;

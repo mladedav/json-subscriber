@@ -1,5 +1,4 @@
 use std::{
-    io,
     sync::{Arc, Barrier},
     thread,
     time::{Duration, Instant},

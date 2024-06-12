@@ -8,19 +8,55 @@ use tracing_subscriber::{
         TestWriter,
     },
     registry::LookupSpan,
-    Layer,
+    Layer as Subscribe,
     Registry,
 };
 
-use super::CustomJsonLayer;
+use crate::layer::JsonLayer;
 
-pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
-    inner: CustomJsonLayer<S, W>,
+/// A [`Layer`] that logs JSON formatted representations of `tracing` events.
+/// 
+/// This is just a wrapper around [`JsonLayer`] which exists for compatibility with
+/// `tracing_subscriber`.
+///
+/// ## Examples
+///
+/// Constructing a layer with the default configuration:
+///
+/// ```rust
+/// use tracing_subscriber::Registry;
+/// use tracing_subscriber::layer::SubscriberExt as _;
+/// use json_subscriber::fmt;
+///
+/// let subscriber = Registry::default()
+///     .with(fmt::Layer::default());
+///
+/// tracing::subscriber::set_global_default(subscriber).unwrap();
+/// ```
+///
+/// Overriding the layer's behavior:
+///
+/// ```rust
+/// use tracing_subscriber::Registry;
+/// use tracing_subscriber::layer::SubscriberExt as _;
+/// use json_subscriber::fmt;
+///
+/// let fmt_layer = fmt::layer()
+///    .with_target(false) // don't include event targets when logging
+///    .with_level(false); // don't include event levels when logging
+///
+/// let subscriber = Registry::default().with(fmt_layer);
+/// # tracing::subscriber::set_global_default(subscriber).unwrap();
+/// ```
+///
+/// [`Layer`]: tracing_subscriber::Layer
+pub struct Layer<S = Registry, W = fn() -> io::Stdout> {
+    inner: JsonLayer<S, W>,
 }
 
-impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Default for JsonLayer<S> {
+impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Default for Layer<S> {
     fn default() -> Self {
-        let mut inner = CustomJsonLayer::empty();
+        let mut inner = JsonLayer::stdout();
 
         inner
             // If we do not call this, fields are not printed at all.
@@ -35,9 +71,9 @@ impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Default for JsonLayer<S> 
     }
 }
 
-impl<S, W> Layer<S> for JsonLayer<S, W>
+impl<S, W> Subscribe<S> for Layer<S, W>
 where
-    CustomJsonLayer<S, W>: Layer<S>,
+    JsonLayer<S, W>: Subscribe<S>,
     S: Subscriber,
 {
     fn on_register_dispatch(&self, subscriber: &tracing::Dispatch) {
@@ -128,7 +164,7 @@ where
     }
 }
 
-impl<S, W> JsonLayer<S, W>
+impl<S, W> Layer<S, W>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
@@ -151,11 +187,11 @@ where
     ///
     /// [`MakeWriter`]: super::writer::MakeWriter
     /// [`JsonLayer`]: super::JsonLayer
-    pub fn with_writer<W2>(self, make_writer: W2) -> JsonLayer<S, W2>
+    pub fn with_writer<W2>(self, make_writer: W2) -> Layer<S, W2>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
-        JsonLayer::<S, W2> {
+        Layer::<S, W2> {
             inner: self.inner.with_writer(make_writer),
         }
     }
@@ -179,11 +215,11 @@ where
     /// # use tracing_subscriber::Subscribe as _;
     /// # let _ = subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
-    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> JsonLayer<S, W2>
+    pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> Layer<S, W2>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
     {
-        JsonLayer::<S, W2> {
+        Layer::<S, W2> {
             inner: self.inner.map_writer(f),
         }
     }
@@ -210,8 +246,8 @@ where
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
     /// [`TestWriter`]: super::writer::TestWriter
-    pub fn with_test_writer(self) -> JsonLayer<S, TestWriter> {
-        JsonLayer::<S, TestWriter> {
+    pub fn with_test_writer(self) -> Layer<S, TestWriter> {
+        Layer::<S, TestWriter> {
             inner: self.inner.with_test_writer(),
         }
     }
@@ -369,20 +405,30 @@ where
         self.inner.with_thread_ids(display_thread_id);
         self
     }
+
+    /// Wets whether or not [OpenTelemetry] trace ID and span ID is displayed when formatting
+    /// events.
+    /// 
+    /// [OpenTelemetry]: https://opentelemetry.io
+    #[cfg(feature = "opentelemetry")]
+    pub fn with_opentelemetry_ids(mut self, display_opentelemetry_ids: bool) -> Self {
+        self.inner.with_opentelemetry_ids(display_opentelemetry_ids);
+        self
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use serde_json::json;
     use tracing::subscriber::with_default;
-    use tracing_subscriber::{registry, Layer, Registry};
+    use tracing_subscriber::{registry, Layer as _, Registry};
 
-    use super::JsonLayer;
+    use super::Layer;
     use crate::tests::{MockMakeWriter, MockTime};
 
     fn test_json<W, T>(
         expected: serde_json::Value,
-        layer: JsonLayer<Registry, W>,
+        layer: Layer<Registry, W>,
         producer: impl FnOnce() -> T,
     ) {
         let actual = produce_log_line(layer, producer);
@@ -393,7 +439,7 @@ mod tests {
     }
 
     fn produce_log_line<W, T>(
-        layer: JsonLayer<Registry, W>,
+        layer: Layer<Registry, W>,
         producer: impl FnOnce() -> T,
     ) -> String {
         let make_writer = MockMakeWriter::default();
@@ -433,7 +479,7 @@ mod tests {
             }
         );
 
-        let layer = JsonLayer::default();
+        let layer = Layer::default();
 
         test_json(expected, layer, || {
             let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
@@ -465,7 +511,7 @@ mod tests {
             }
         );
 
-        let layer = JsonLayer::default()
+        let layer = Layer::default()
             .flatten_event(true)
             .with_current_span(true)
             .with_span_list(true);
@@ -484,7 +530,7 @@ mod tests {
         #[rustfmt::skip]
         let expected = "{\"level\":\"INFO\",\"timestamp\":\"fake time\",\"level\":\"this is a bug\",\"message\":\"some json test\"}\n";
 
-        let layer = JsonLayer::default()
+        let layer = Layer::default()
             .flatten_event(true)
             .with_current_span(false)
             .with_span_list(false)

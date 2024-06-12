@@ -7,6 +7,7 @@ edition = "2021"
 default = []
 tracing-log = ["tracing-subscriber/tracing-log", "dep:tracing-log"]
 env-filter = ["tracing-subscriber/env-filter"]
+opentelemetry = ["dep:tracing-opentelemetry", "dep:opentelemetry"]
 
 [dependencies]
 serde = "1.0.202"
@@ -22,12 +23,19 @@ tracing-subscriber = { version = "0.3.18", default-features = false, features = 
     "fmt",
 ] }
 
+# OpenTelemetry
+tracing-opentelemetry = { version = "0.24.0", default-features = false, optional = true }
+opentelemetry = { version = "0.23.0", default-features = false, optional = true }
+
 [dev-dependencies]
 criterion = { version = "0.3.6", default-features = false }
 snafu = "0.6.10"
 thiserror = "1.0.31"
 tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["json"] }
+
+opentelemetry_sdk = { version = "0.23.0", default-features = false }
+opentelemetry-stdout = "0.4"
 
 [lib]
 bench = false
