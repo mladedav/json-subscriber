@@ -2,6 +2,12 @@
 name = "json-subscriber"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.65"
+homepage = "https://github.com/mladedav/json-subscriber"
+keywords = ["logging", "tracing", "json", "subscriber"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/mladedav/json-subscriber"
 
 [features]
 default = []
@@ -28,7 +34,7 @@ tracing-opentelemetry = { version = "0.24.0", default-features = false, optional
 opentelemetry = { version = "0.23.0", default-features = false, optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.3.6", default-features = false }
+criterion = { version = "0.5.1", default-features = false }
 snafu = "0.6.10"
 thiserror = "1.0.31"
 tracing = { version = "0.1", features = ["attributes"] }
