@@ -768,7 +768,7 @@ impl<W, T, F> SubscriberBuilder<W, T, reload::Layer<F, Registry>> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     //! These tests are copied from `tracing-subscriber` for compatibility.
 
     use std::path::Path;
@@ -813,6 +813,7 @@ mod test {
     #[test]
     fn json_filename() {
         let current_path = Path::new("src")
+            .join("fmt")
             .join("builder.rs")
             .to_str()
             .expect("path must be valid unicode")
@@ -820,7 +821,7 @@ mod test {
             .replace('\\', "\\\\");
         #[rustfmt::skip]
         let expected = &format!("{}{}{}",
-            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::builder::test\",\"filename\":\"",
+            "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::fmt::builder::tests\",\"filename\":\"",
             current_path,
             "\",\"fields\":{\"message\":\"some json test\"}}\n"
         );
@@ -839,7 +840,7 @@ mod test {
     #[test]
     fn json_line_number() {
         #[rustfmt::skip]
-        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::builder::test\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::fmt::builder::tests\",\"line_number\":42,\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -855,7 +856,7 @@ mod test {
     #[test]
     fn json_flattened_event() {
         #[rustfmt::skip]
-        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::builder::test\",\"message\":\"some json test\"}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::fmt::builder::tests\",\"message\":\"some json test\"}\n";
 
         let collector = subscriber()
             .flatten_event(true)
@@ -871,7 +872,7 @@ mod test {
     #[test]
     fn json_disabled_current_span_event() {
         #[rustfmt::skip]
-        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::builder::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3}],\"target\":\"json_subscriber::fmt::builder::tests\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(false)
@@ -886,7 +887,7 @@ mod test {
     #[test]
     fn json_disabled_span_list_event() {
         #[rustfmt::skip]
-        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"json_subscriber::builder::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":42,\"name\":\"json_span\",\"number\":3},\"target\":\"json_subscriber::fmt::builder::tests\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -901,7 +902,7 @@ mod test {
     #[test]
     fn json_nested_span() {
         #[rustfmt::skip]
-        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"json_subscriber::builder::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"json_subscriber::fmt::builder::tests\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -923,7 +924,7 @@ mod test {
     #[test]
     fn json_explicit_span() {
         #[rustfmt::skip]
-        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"json_subscriber::builder::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"span\":{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4},\"spans\":[{\"answer\":42,\"name\":\"json_span\",\"number\":3},{\"answer\":43,\"name\":\"nested_json_span\",\"number\":4}],\"target\":\"json_subscriber::fmt::builder::tests\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -945,7 +946,7 @@ mod test {
     #[test]
     fn json_explicit_no_span() {
         #[rustfmt::skip]
-        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"json_subscriber::builder::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"json_subscriber::fmt::builder::tests\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)
@@ -967,7 +968,7 @@ mod test {
     #[test]
     fn json_no_span() {
         #[rustfmt::skip]
-        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"json_subscriber::builder::test\",\"fields\":{\"message\":\"some json test\"}}\n";
+        let expected = "{\"timestamp\":\"fake time\",\"level\":\"INFO\",\"target\":\"json_subscriber::fmt::builder::tests\",\"fields\":{\"message\":\"some json test\"}}\n";
         let collector = subscriber()
             .flatten_event(false)
             .with_current_span(true)

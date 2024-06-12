@@ -469,7 +469,7 @@ mod tests {
                         "number": 3,
                     },
                 ],
-                "target": "json_subscriber::layer::compatibility::tests",
+                "target": "json_subscriber::fmt::layer::tests",
                 "fields": {
                     "message": "some json test",
                 },
@@ -503,7 +503,7 @@ mod tests {
                         "number": 3,
                     },
                 ],
-                "target": "json_subscriber::layer::compatibility::tests",
+                "target": "json_subscriber::fmt::layer::tests",
                 "message": "some json test",
             }
         );
@@ -525,7 +525,7 @@ mod tests {
 
         // Notice that there is `level` twice so this is not a valid JSON.
         #[rustfmt::skip]
-        let expected = "{\"level\":\"INFO\",\"timestamp\":\"fake time\",\"level\":\"this is a bug\",\"message\":\"some json test\"}\n";
+        let expected = "{\"level\":\"this is a bug\",\"message\":\"some json test\",\"level\":\"INFO\",\"timestamp\":\"fake time\"}\n";
 
         let layer = Layer::default()
             .flatten_event(true)
