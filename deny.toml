@@ -15,7 +15,10 @@ confidence-threshold = 0.8
 [bans]
 multiple-versions = "deny"
 highlight = "all"
-skip-tree = []
+skip-tree = [
+    # pulled in by tracing
+    { name = "matchers" },
+]
 
 [sources]
 unknown-registry = "warn"
