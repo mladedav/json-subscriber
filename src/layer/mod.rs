@@ -29,7 +29,7 @@ use crate::{cached::Cached, fields::JsonFields, visitor::JsonVisitor};
 pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
     make_writer: W,
     log_internal_errors: bool,
-    pub(crate) schema: BTreeMap<SchemaKey, JsonValue<S>>,
+    schema: BTreeMap<SchemaKey, JsonValue<S>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

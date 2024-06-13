@@ -22,20 +22,19 @@
 //! use tracing::info;
 //! use json_subscriber;
 //!
-//! fn main() {
-//!     // install global collector configured based on RUST_LOG env var.
-//!     json_subscriber::fmt::init();
 //!
-//!     let number_of_yaks = 3;
-//!     // this creates a new event, outside of any spans.
-//!     info!(number_of_yaks, "preparing to shave yaks");
+//! // install global collector configured based on RUST_LOG env var.
+//! json_subscriber::fmt::init();
 //!
-//!     let number_shaved = yak_shave::shave_all(number_of_yaks);
-//!     info!(
-//!         all_yaks_shaved = number_shaved == number_of_yaks,
-//!         "yak shaving completed."
-//!     );
-//! }
+//! let number_of_yaks = 3;
+//! // this creates a new event, outside of any spans.
+//! info!(number_of_yaks, "preparing to shave yaks");
+//!
+//! let number_shaved = yak_shave::shave_all(number_of_yaks);
+//! info!(
+//!     all_yaks_shaved = number_shaved == number_of_yaks,
+//!     "yak shaving completed."
+//! );
 //! ```
 //!
 //! Most configuration under `tracing_subscriber::fmt` should work equivalently. For example one can

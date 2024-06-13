@@ -1,3 +1,6 @@
+// This file is included from different places and not every places uses all functions.
+#![allow(dead_code)]
+
 use std::error::Error;
 
 use snafu::{ResultExt, Snafu};

@@ -22,9 +22,3 @@ impl serde::Serialize for JsonFields {
         serializer.end()
     }
 }
-
-impl JsonFields {
-    pub fn fields(&self) -> &BTreeMap<&'static str, serde_json::Value> {
-        &self.fields
-    }
-}
