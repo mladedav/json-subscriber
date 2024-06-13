@@ -307,6 +307,7 @@ dependencies = [
 name = "json-subscriber"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "criterion",
  "opentelemetry",
  "opentelemetry-stdout",
