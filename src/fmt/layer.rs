@@ -198,7 +198,7 @@ where
 
     /// Updates the [`MakeWriter`] by applying a function to the existing [`MakeWriter`].
     ///
-    /// This sets the [`MakeWriter`] that the subscriber being built will use to write events.
+    /// This sets the [`MakeWriter`] that the layer being built will use to write events.
     ///
     /// # Examples
     ///
@@ -224,7 +224,7 @@ where
         }
     }
 
-    /// Configures the subscriber to support [`libtest`'s output capturing][capturing] when used in
+    /// Configures the layer to support [`libtest`'s output capturing][capturing] when used in
     /// unit tests.
     ///
     /// See [`TestWriter`] for additional details.
@@ -252,14 +252,14 @@ where
         }
     }
 
-    /// Borrows the [writer] for this subscriber.
+    /// Borrows the [writer] for this layer.
     ///
     /// [writer]: MakeWriter
     pub fn writer(&self) -> &W {
         self.inner.writer()
     }
 
-    /// Mutably borrows the [writer] for this subscriber.
+    /// Mutably borrows the [writer] for this layer.
     ///
     /// This method is primarily expected to be used with the [`reload::Handle::modify`] method.
     ///
@@ -288,6 +288,28 @@ where
     /// [`reload::Handle::modify`]: tracing_subscriber::reload::Handle::modify
     pub fn writer_mut(&mut self) -> &mut W {
         self.inner.writer_mut()
+    }
+
+    /// Mutably borrows the [`JsonLayer`] inside of this layer. This can be useful to add more
+    /// information to the output or to change the output with the [`reload::Handle::modify`]
+    /// method.
+    ///
+    /// # Examples
+    /// ```rust
+    /// let mut layer = tracing_json::layer();
+    /// let mut inner = layer.inner_layer_mut();
+    ///
+    /// inner.add_static_field(
+    ///     "hostname",
+    ///     serde_json::json!({
+    ///         "hostname": get_hostname(),
+    ///     }),
+    /// );
+    /// ```
+    ///
+    /// [`reload::Handle::modify`]: tracing_subscriber::reload::Handle::modify
+    pub fn inner_layer_mut(&mut self) -> &mut JsonLayer<S, W> {
+        &mut self.inner
     }
 
     /// Sets whether to write errors from [`FormatEvent`] to the writer.

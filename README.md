@@ -95,6 +95,33 @@ This will produce log lines like for example this (without the formatting):
 
 See the `readme-opentelemetry` example for full code.
 
+### Custom
+
+You can also specify custom static fields to be added to each log line, or serialize extensions provided by other `Layer`s:
+
+```rust
+#[derive(Serialize)]
+struct Foo(String);
+
+impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Layer<S> for FooLayer {
+    fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+        let span = ctx.span(id).unwrap();
+        let mut extensions = span.extensions_mut();
+        let foo = Foo("hello".to_owned());
+        extensions.insert(foo);
+    }
+}
+
+fn main() {
+  let foo_layer = FooLayer;
+
+  let mut layer = json_subscriber::JsonLayer::stdout();
+  layer.serialize_extension::<Foo>("foo");
+
+  registry().with(foo_layer).with(layer);
+}
+```
+
 ## Supported Rust Versions
 
 `json-subscriber` is built against the latest stable release. The minimum supported version is 1.65.

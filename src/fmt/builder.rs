@@ -568,6 +568,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
 
     /// Sets whether or not [OpenTelemetry] trace ID and span ID is displayed when formatting
     /// events.
+    ///
+    /// [OpenTelemetry]: https://opentelemetry.io
     #[cfg(feature = "opentelemetry")]
     #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
     pub fn with_opentelemetry_ids(self, display_opentelemetry_ids: bool) -> Self {

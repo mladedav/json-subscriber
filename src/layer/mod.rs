@@ -21,6 +21,11 @@ use event::EventRef;
 
 use crate::{cached::Cached, fields::JsonFields, visitor::JsonVisitor};
 
+/// Layer that implements logging JSON to a configured output. This is a lower-level API that may
+/// change a bit in next versions.
+///
+/// See [`fmt::Layer`](crate::fmt::Layer) for an alternative especially if you're migrating from
+/// `tracing_subscriber`.
 pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
     make_writer: W,
     log_internal_errors: bool,
@@ -28,7 +33,7 @@ pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SchemaKey {
+enum SchemaKey {
     Static(Cow<'static, str>),
 }
 
@@ -183,14 +188,18 @@ impl<S> JsonLayer<S>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
+    /// Creates an empty [`JsonLayer`] which will output logs to stdout.
     pub fn stdout() -> JsonLayer<S, fn() -> io::Stdout> {
         JsonLayer::new(io::stdout)
     }
 
+    /// Creates an empty [`JsonLayer`] which will output logs to stderr.
     pub fn stderr() -> JsonLayer<S, fn() -> io::Stderr> {
         JsonLayer::new(io::stderr)
     }
 
+    /// Creates an empty [`JsonLayer`] which will output logs to the configured
+    /// [`Writer`](io::Write).
     pub fn new<W>(make_writer: W) -> JsonLayer<S, W>
     where
         W: for<'writer> MakeWriter<'writer> + 'static,

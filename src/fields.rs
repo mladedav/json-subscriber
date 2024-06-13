@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Default)]
-pub struct JsonFields {
+pub(crate) struct JsonFields {
     pub(crate) fields: BTreeMap<&'static str, serde_json::Value>,
     pub(crate) version: usize,
     pub(crate) serialized: Option<Arc<str>>,

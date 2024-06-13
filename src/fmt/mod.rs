@@ -94,9 +94,24 @@ where
     Layer::default()
 }
 
+/// A type that can be used to create a [`Subscriber`](tracing::Subscriber) which collects tracing
+/// spans and events and emits them in JSON.
+///
+/// This type is actually ZST and is only useful to call [`builder`](fn@Self::builder) to configure
+/// a subscriber.
 pub struct Subscriber;
 
 impl Subscriber {
+    /// Creates a [`SubscriberBuilder`] which can be used to configure a [`Subscriber`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let subscriber = Subscriber::builder()
+    ///     .with_max_level(tracing::Level::INFO)
+    ///     .with_target(false)
+    ///     .finish();
+    /// ```
     pub fn builder() -> SubscriberBuilder {
         SubscriberBuilder::default()
     }
