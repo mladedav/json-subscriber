@@ -15,6 +15,9 @@ tracing-log = ["tracing-subscriber/tracing-log", "dep:tracing-log"]
 env-filter = ["tracing-subscriber/env-filter"]
 opentelemetry = ["dep:tracing-opentelemetry", "dep:opentelemetry", "dep:async-trait"]
 
+# Required for intra-doc links to resolve correctly
+__private_docs = ["tracing-subscriber/time", "tracing-subscriber/local-time"]
+
 [dependencies]
 serde = "1.0.202"
 serde_json = "1.0.117"
@@ -44,6 +47,10 @@ tracing-subscriber = { version = "0.3", features = ["json"] }
 
 opentelemetry_sdk = { version = "0.23.0", default-features = false }
 opentelemetry-stdout = "0.4"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
 bench = false

@@ -78,10 +78,13 @@ pub fn fmt() -> SubscriberBuilder {
     SubscriberBuilder::default()
 }
 
-/// Returns a new [json formatting layer] that can be [composed] with other layers to
-/// construct a [`Subscriber`].
+/// Returns a new [json formatting layer] that can be [composed] with other layers to construct a
+/// [`Subscriber`].
 ///
-/// [json formatting layer]: JsonLayer
+/// This layer is primarily for compatibility with `tracing_subscriber`, if you need more control
+/// over the output, [`JsonLayer`](crate::JsonLayer) can be used instead.
+///
+/// [json formatting layer]: Layer
 /// [composed]: tracing_subscriber::layer
 /// [`Layer::default()`]: Layer::default
 pub fn layer<S>() -> Layer<S>
@@ -123,7 +126,7 @@ impl Subscriber {
 ///
 /// [`LogTracer`]:
 ///     https://docs.rs/tracing-log/0.1.0/tracing_log/struct.LogTracer.html
-/// [`RUST_LOG` environment variable]: crate::filter::EnvFilter::DEFAULT_ENV
+/// [`RUST_LOG` environment variable]: tracing_subscriber::EnvFilter::DEFAULT_ENV
 pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let builder = Subscriber::builder();
 
@@ -188,7 +191,7 @@ pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 /// Panics if the initialization was unsuccessful, likely because a
 /// global subscriber was already installed by another call to `try_init`.
 ///
-/// [`RUST_LOG` environment variable]: crate::filter::EnvFilter::DEFAULT_ENV
+/// [`RUST_LOG` environment variable]: tracing_subscriber::EnvFilter::DEFAULT_ENV
 pub fn init() {
     try_init().expect("Unable to install global subscriber")
 }

@@ -224,7 +224,7 @@ where
     /// # let _ = fmt_subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
     ///
-    /// [`MakeWriter`]: super::writer::MakeWriter
+    /// [`MakeWriter`]: MakeWriter
     /// [`JsonLayer`]: super::JsonLayer
     pub fn with_writer<W2>(self, make_writer: W2) -> JsonLayer<S, W2>
     where
@@ -247,7 +247,7 @@ where
     /// Mutably borrows the [writer] for this subscriber.
     ///
     /// This method is primarily expected to be used with the
-    /// [`reload::Handle::modify`](crate::reload::Handle::modify) method.
+    /// [`reload::Handle::modify`](tracing_subscriber::reload::Handle::modify) method.
     ///
     /// # Examples
     ///
@@ -296,7 +296,6 @@ where
     /// ```
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
-    /// [`TestWriter`]: super::writer::TestWriter
     pub fn with_test_writer(self) -> JsonLayer<S, TestWriter> {
         JsonLayer {
             make_writer: TestWriter::default(),
@@ -315,7 +314,7 @@ where
     /// If writing to the writer fails, the error message is printed to stderr
     /// as a fallback.
     ///
-    /// [`FormatEvent`]: crate::fmt::FormatEvent
+    /// [`FormatEvent`]: tracing_subscriber::fmt::FormatEvent
     pub fn log_internal_errors(&mut self, log_internal_errors: bool) -> &mut Self {
         self.log_internal_errors = log_internal_errors;
         self
@@ -812,12 +811,13 @@ where
         self
     }
 
-    /// Wets whether or not [OpenTelemetry] trace ID and span ID is displayed when formatting
+    /// Sets whether or not [OpenTelemetry] trace ID and span ID is displayed when formatting
     /// events. It will use the `openTelemetry` key if so and the value will be an object with
     /// `traceId` and `spanId` fields, each being a string.
     ///
     /// [OpenTelemetry]: https://opentelemetry.io
     #[cfg(feature = "opentelemetry")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
     pub fn with_opentelemetry_ids(&mut self, display_opentelemetry_ids: bool) -> &mut Self {
         use opentelemetry::trace::{TraceContextExt, TraceId};
         use tracing_opentelemetry::OtelData;

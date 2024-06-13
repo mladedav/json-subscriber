@@ -185,8 +185,8 @@ where
     /// # let _ = fmt_subscriber.with_collector(tracing_subscriber::registry::Registry::default());
     /// ```
     ///
-    /// [`MakeWriter`]: super::writer::MakeWriter
-    /// [`JsonLayer`]: super::JsonLayer
+    /// [`MakeWriter`]: MakeWriter
+    /// [`JsonLayer`]: JsonLayer
     pub fn with_writer<W2>(self, make_writer: W2) -> Layer<S, W2>
     where
         W2: for<'writer> MakeWriter<'writer> + 'static,
@@ -245,7 +245,7 @@ where
     /// ```
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
-    /// [`TestWriter`]: super::writer::TestWriter
+    /// [`TestWriter`]: TestWriter
     pub fn with_test_writer(self) -> Layer<S, TestWriter> {
         Layer::<S, TestWriter> {
             inner: self.inner.with_test_writer(),
@@ -261,8 +261,7 @@ where
 
     /// Mutably borrows the [writer] for this subscriber.
     ///
-    /// This method is primarily expected to be used with the
-    /// [`reload::Handle::modify`](crate::reload::Handle::modify) method.
+    /// This method is primarily expected to be used with the [`reload::Handle::modify`] method.
     ///
     /// # Examples
     ///
@@ -286,6 +285,7 @@ where
     /// ```
     ///
     /// [writer]: MakeWriter
+    /// [`reload::Handle::modify`]: tracing_subscriber::reload::Handle::modify
     pub fn writer_mut(&mut self) -> &mut W {
         self.inner.writer_mut()
     }
@@ -293,40 +293,32 @@ where
     /// Sets whether to write errors from [`FormatEvent`] to the writer.
     /// Defaults to true.
     ///
-    /// By default, `fmt::JsonLayer` will write any `FormatEvent`-internal errors to
-    /// the writer. These errors are unlikely and will only occur if there is a
-    /// bug in the `FormatEvent` implementation or its dependencies.
+    /// By default, `fmt::JsonLayer` will write any `FormatEvent`-internal errors to the writer.
+    /// These errors are unlikely and will only occur if there is a bug in the `FormatEvent`
+    /// implementation or its dependencies.
     ///
-    /// If writing to the writer fails, the error message is printed to stderr
-    /// as a fallback.
+    /// If writing to the writer fails, the error message is printed to stderr as a fallback.
     ///
-    /// [`FormatEvent`]: crate::fmt::FormatEvent
+    /// [`FormatEvent`]: tracing_subscriber::fmt::FormatEvent
     pub fn log_internal_errors(mut self, log_internal_errors: bool) -> Self {
         self.inner.log_internal_errors(log_internal_errors);
         self
     }
 
     /// Sets the JSON subscriber being built to flatten event metadata.
-    ///
-    /// See [`format::Json`]
     pub fn flatten_event(mut self, flatten_event: bool) -> Self {
         self.inner.flatten_event(flatten_event);
         self
     }
 
-    /// Sets whether or not the formatter will include the current span in
-    /// formatted events.
-    ///
-    /// See [`format::Json`]
+    /// Sets whether or not the formatter will include the current span in formatted events.
     pub fn with_current_span(mut self, display_current_span: bool) -> Self {
         self.inner.with_current_span(display_current_span);
         self
     }
 
-    /// Sets whether or not the formatter will include a list (from root to leaf)
-    /// of all currently entered spans in formatted events.
-    ///
-    /// See [`format::Json`]
+    /// Sets whether or not the formatter will include a list (from root to leaf) of all currently
+    /// entered spans in formatted events.
     pub fn with_span_list(mut self, display_span_list: bool) -> Self {
         self.inner.with_span_list(display_span_list);
         self
@@ -341,10 +333,10 @@ where
     /// [`time` crate] to provide more sophisticated timestamp formatting
     /// options.
     ///
-    /// [`timer`]: time::FormatTime
-    /// [`time` module]: mod@time
-    /// [`UtcTime`]: time::UtcTime
-    /// [`LocalTime`]: time::LocalTime
+    /// [`timer`]: tracing_subscriber::fmt::time::FormatTime
+    /// [`time` module]: mod@tracing_subscriber::fmt::time
+    /// [`UtcTime`]: tracing_subscriber::fmt::time::UtcTime
+    /// [`LocalTime`]: tracing_subscriber::fmt::time::LocalTime
     /// [`time` crate]: https://docs.rs/time/0.3
     pub fn with_timer<T: FormatTime + Send + Sync + 'static>(mut self, timer: T) -> Self {
         self.inner.with_timer(timer);
@@ -406,11 +398,12 @@ where
         self
     }
 
-    /// Wets whether or not [OpenTelemetry] trace ID and span ID is displayed when formatting
+    /// Sets whether or not [OpenTelemetry] trace ID and span ID is displayed when formatting
     /// events.
     ///
     /// [OpenTelemetry]: https://opentelemetry.io
     #[cfg(feature = "opentelemetry")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
     pub fn with_opentelemetry_ids(mut self, display_opentelemetry_ids: bool) -> Self {
         self.inner.with_opentelemetry_ids(display_opentelemetry_ids);
         self

@@ -410,7 +410,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// [`time` crate] to provide more sophisticated timestamp formatting
     /// options.
     ///
-    /// [`timer`]: tracing_subscriber::fmt::time::FormatTime
+    /// [`timer`]: FormatTime
     /// [`time` module]: mod@tracing_subscriber::fmt::time
     /// [`UtcTime`]: tracing_subscriber::fmt::time::UtcTime
     /// [`LocalTime`]: tracing_subscriber::fmt::time::LocalTime
@@ -566,7 +566,10 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
         }
     }
 
+    /// Sets whether or not [OpenTelemetry] trace ID and span ID is displayed when formatting
+    /// events.
     #[cfg(feature = "opentelemetry")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
     pub fn with_opentelemetry_ids(self, display_opentelemetry_ids: bool) -> Self {
         SubscriberBuilder {
             display_opentelemetry_ids,
@@ -673,7 +676,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     ///     .finish();
     /// ```
     /// [verbosity level]: tracing_core::Level
-    /// [`EnvFilter`]: struct@crate::filter::EnvFilter
+    /// [`EnvFilter`]: struct@tracing_subscriber::filter::EnvFilter
     /// [`with_env_filter`]: fn@Self::with_env_filter
     pub fn with_max_level(
         self,
@@ -735,7 +738,6 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// ```
     ///
     /// [`reload_handle`]: Self::reload_handle
-    /// [`reload::Handle`]: crate::reload::Handle
     pub fn with_filter_reloading(self) -> SubscriberBuilder<W, T, reload::Layer<F, Registry>> {
         let (filter, _) = reload::Layer::new(self.filter);
         SubscriberBuilder {
