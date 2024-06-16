@@ -664,6 +664,41 @@ where
         self
     }
 
+    /// Sets the formatter to include an object containing all parent spans' fields. If multiple
+    /// ancestor spans recorded the same field, the span closer to the leaf span overrides the
+    /// values of spans that are closer to the root spans.
+    ///
+    /// This overrides any previous calls to [`with_span_list`](Self::with_span_list).
+    pub(crate) fn flatten_span_list(&mut self) -> &mut Self {
+        self.schema.insert(
+            SchemaKey::from("spans"),
+            JsonValue::DynamicFromSpan(Box::new(|span| {
+                let fields =
+                    span.scope()
+                        .from_root()
+                        .fold(BTreeMap::new(), |mut accumulator, span| {
+                            let extensions = span.extensions();
+                            let Some(fields) = extensions.get::<JsonFields>() else {
+                                return accumulator;
+                            };
+                            accumulator.extend(
+                                fields
+                                    .fields
+                                    .iter()
+                                    .map(|(key, value)| (*key, value.clone())),
+                            );
+                            accumulator
+                        });
+
+                Some(DynamicJsonValue {
+                    flatten: false,
+                    value: serde_json::to_value(fields).ok()?,
+                })
+            })),
+        );
+        self
+    }
+
     /// Use the given [`timer`] for log message timestamps with the `timestamp` key.
     ///
     /// See the [`time` module] for the provided timer implementations.

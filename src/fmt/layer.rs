@@ -341,8 +341,24 @@ where
 
     /// Sets whether or not the formatter will include a list (from root to leaf) of all currently
     /// entered spans in formatted events.
+    ///
+    /// This overrides any previous calls to [`with_flat_span_list`](Self::with_flat_span_list).
     pub fn with_span_list(mut self, display_span_list: bool) -> Self {
         self.inner.with_span_list(display_span_list);
+        self
+    }
+
+    /// Sets whether or not the formatter will include an object containing all parent spans'
+    /// fields. If multiple ancestor spans recorded the same field, the span closer to the leaf span
+    /// overrides the values of spans that are closer to the root spans.
+    ///
+    /// This overrides any previous calls to [`with_span_list`](Self::with_span_list).
+    pub fn with_flat_span_list(mut self, flatten_span_list: bool) -> Self {
+        if flatten_span_list {
+            self.inner.flatten_span_list();
+        } else {
+            self.inner.with_span_list(false);
+        }
         self
     }
 
@@ -555,5 +571,39 @@ mod tests {
         });
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn flatten_spans() {
+        let expected = json!(
+            {
+                "timestamp": "fake time",
+                "level": "INFO",
+                "spans": {
+                    "answer": 42,
+                    "name": "child_span",
+                    "number": 100,
+                    "text": "text",
+                },
+                "target": "json_subscriber::fmt::layer::tests",
+                "fields": {
+                    "message": "some json test",
+                },
+            }
+        );
+
+        let layer = Layer::default()
+            .with_flat_span_list(true)
+            .with_current_span(false);
+
+        test_json(expected, layer, || {
+            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let _guard = span.enter();
+            let child =
+                tracing::info_span!("child_span", number = 100, text = tracing::field::Empty);
+            let _guard = child.clone().entered();
+            child.record("text", "text");
+            tracing::info!("some json test");
+        });
     }
 }
