@@ -122,6 +122,10 @@ fn main() {
 }
 ```
 
+## Benchmarks
+
+This crate strives to be faster than `tracing_subscriber`. See [benchmarks](docs/benchmark.md).
+
 ## Supported Rust Versions
 
 `json-subscriber` is built against the latest stable release. The minimum supported version is 1.65.

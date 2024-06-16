@@ -6,10 +6,18 @@ mod support;
 use support::MultithreadedBench;
 
 fn mk_dispatch() -> tracing::Dispatch {
-    json_subscriber_dispatch()
-    // tracing_subscriber_dispatch()
+    #[cfg(not(bench_tracing_baseline))]
+    {
+        json_subscriber_dispatch()
+    }
+
+    #[cfg(bench_tracing_baseline)]
+    {
+        tracing_subscriber_dispatch()
+    }
 }
 
+#[cfg(not(bench_tracing_baseline))]
 fn json_subscriber_dispatch() -> tracing::Dispatch {
     let collector = json_subscriber::fmt::Subscriber::builder()
         .with_writer(sink)
@@ -17,8 +25,7 @@ fn json_subscriber_dispatch() -> tracing::Dispatch {
     tracing::Dispatch::new(collector)
 }
 
-// This can be used to set a baseline to compare this implementation with.
-#[allow(dead_code)]
+#[cfg(bench_tracing_baseline)]
 fn tracing_subscriber_dispatch() -> tracing::Dispatch {
     let collector = tracing_subscriber::fmt::Subscriber::builder()
         .json()

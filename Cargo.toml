@@ -59,3 +59,6 @@ bench = false
 [[bench]]
 name = "tracing_subscriber"
 harness = false
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(bench_tracing_baseline)'] }
