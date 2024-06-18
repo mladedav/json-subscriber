@@ -41,7 +41,7 @@ use crate::layer::JsonLayer;
 /// Using [`init`] to set the default subscriber:
 ///
 /// ```rust
-/// json_subscriber::builder::SubscriberBuilder::default().init();
+/// json_subscriber::fmt::SubscriberBuilder::default().init();
 /// ```
 ///
 /// Configuring the output format:
@@ -80,7 +80,6 @@ use crate::layer::JsonLayer;
 /// ```rust
 /// let subscriber = json_subscriber::fmt()
 ///     .with_max_level(tracing::Level::DEBUG)
-///     .compact()
 ///     .finish();
 ///
 /// tracing::subscriber::with_default(subscriber, || {
@@ -301,7 +300,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// ```
     /// use tracing_subscriber::{fmt::writer::EitherWriter, reload};
     /// # fn main() {
-    /// let subscriber = json_subscriber::fmt::subscriber()
+    /// let subscriber = json_subscriber::fmt()
     ///     .with_writer::<Box<dyn Fn() -> EitherWriter<_, _>>>(Box::new(|| EitherWriter::A(std::io::stderr())));
     /// let (subscriber, reload_handle) = reload::Layer::new(subscriber);
     /// # let subscriber: reload::Layer<_, tracing_subscriber::Registry> = subscriber;
@@ -327,10 +326,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// Using [`TestWriter`] to let `cargo test` capture test output:
     ///
     /// ```rust
-    /// use std::io;
-    /// use json_subscriber::fmt;
-    ///
-    /// let fmt_subscriber = fmt::subscriber()
+    /// let fmt_subscriber = json_subscriber::fmt::fmt()
     ///     .with_test_writer();
     /// ```
     /// [capturing]:
@@ -378,11 +374,10 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     ///
     /// ```rust
     /// use tracing::Level;
-    /// use json_subscriber::fmt;
     /// use tracing_subscriber::fmt::writer::MakeWriterExt;
     ///
     /// let stderr = std::io::stderr.with_max_level(Level::WARN);
-    /// let subscriber = fmt::subscriber()
+    /// let subscriber = json_subscriber::fmt::fmt()
     ///     .map_writer(move |w| stderr.or_else(w));
     /// ```
     pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> SubscriberBuilder<W2, T, F>
@@ -747,11 +742,11 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     ///
     /// For example:
     ///
-    /// ```
+    /// ```rust
+    /// # use tracing_subscriber::prelude::*;
     /// use tracing::Level;
-    /// use tracing_subscriber::util::SubscriberInitExt;
     ///
-    /// let builder = tracing_subscriber::fmt()
+    /// let builder = json_subscriber::fmt()
     ///      // Set a max level filter on the collector
     ///     .with_max_level(Level::INFO)
     ///     .with_filter_reloading();
@@ -775,7 +770,9 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// ```
     ///
     /// [`reload_handle`]: Self::reload_handle
-    pub fn with_filter_reloading(self) -> SubscriberBuilder<W, T, reload::Layer<F, Registry>> {
+    #[cfg(feature = "env-filter")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "env-filter")))]
+    pub fn with_filter_reloading<S>(self) -> SubscriberBuilder<W, T, reload::Layer<F, S>> {
         let (filter, _) = reload::Layer::new(self.filter);
         SubscriberBuilder {
             make_writer: self.make_writer,
@@ -798,10 +795,10 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     }
 }
 
-impl<W, T, F> SubscriberBuilder<W, T, reload::Layer<F, Registry>> {
+impl<W, T, F, S> SubscriberBuilder<W, T, reload::Layer<F, S>> {
     /// Returns a `Handle` that may be used to reload the constructed collector's
     /// filter.
-    pub fn reload_handle(&self) -> reload::Handle<F, Registry> {
+    pub fn reload_handle(&self) -> reload::Handle<F, S> {
         self.filter.handle()
     }
 }
@@ -1131,5 +1128,36 @@ mod tests {
         fn assert_lookup_span<T: for<'a> LookupSpan<'a>>(_: T) {}
         let subscriber = SubscriberBuilder::default().finish();
         assert_lookup_span(subscriber)
+    }
+
+    #[test]
+    #[cfg(feature = "env-filter")]
+    fn reload_filter_works() {
+        use tracing::Level;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        let builder = SubscriberBuilder::default()
+            // Set a max level filter on the collector
+            .with_max_level(Level::INFO)
+            .with_filter_reloading();
+
+        // Get a handle for modifying the collector's max level filter.
+        let handle = builder.reload_handle();
+
+        // Finish building the collector, and set it as the default.
+        builder.finish().init();
+
+        // Currently, the max level is INFO, so this event will be disabled.
+        tracing::debug!("this is not recorded!");
+
+        // Use the handle to set a new max level filter.
+        // (this returns an error if the collector has been dropped, which shouldn't
+        // happen in this example.)
+        handle
+            .reload(Level::DEBUG)
+            .expect("the collector should still exist");
+
+        // Now, the max level is INFO, so this event will be recorded.
+        tracing::debug!("this is recorded!");
     }
 }

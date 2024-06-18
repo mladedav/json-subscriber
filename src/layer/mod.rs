@@ -223,14 +223,10 @@ where
     /// Using `stderr` rather than `stdout`:
     ///
     /// ```rust
-    /// use std::io;
-    /// use tracing_subscriber::fmt;
-    ///
-    /// let fmt_subscriber = fmt::subscriber()
-    ///     .with_writer(io::stderr);
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = fmt_subscriber.with_collector(tracing_subscriber::registry::Registry::default());
+    /// # use tracing_subscriber::prelude::*;
+    /// let layer = json_subscriber::JsonLayer::stdout()
+    ///     .with_writer(std::io::stderr);
+    /// # tracing_subscriber::registry().with(layer);
     /// ```
     ///
     /// [`MakeWriter`]: MakeWriter
@@ -267,12 +263,11 @@ where
     /// #   std::io::stdout
     /// # }
     /// # fn main() {
-    /// let subscriber = fmt::subscriber().with_writer(non_blocking(std::io::stderr()));
-    /// let (subscriber, reload_handle) = reload::JsonLayer::new(subscriber);
-    /// #
-    /// # // specifying the Registry type is required
-    /// # let _: &reload::Handle<fmt::JsonLayer<S, W, T> = &reload_handle;
-    /// #
+    /// let layer = json_subscriber::JsonLayer::stdout().with_writer(non_blocking(std::io::stderr()));
+    /// let (layer, reload_handle) = reload::Layer::new(layer);
+    ///
+    /// tracing_subscriber::registry().with(layer).init();
+    ///
     /// info!("This will be logged to stderr");
     /// reload_handle.modify(|subscriber| *subscriber.writer_mut() = non_blocking(std::io::stdout()));
     /// info!("This will be logged to stdout");
@@ -294,14 +289,10 @@ where
     /// Using [`TestWriter`] to let `cargo test` capture test output:
     ///
     /// ```rust
-    /// use std::io;
-    /// use tracing_subscriber::fmt;
-    ///
-    /// let fmt_subscriber = fmt::subscriber()
+    /// # use tracing_subscriber::prelude::*;
+    /// let layer = json_subscriber::JsonLayer::stdout()
     ///     .with_test_writer();
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = fmt_subscriber.with_collector(tracing_subscriber::registry::Registry::default());
+    /// # tracing_subscriber::registry().with(layer);
     /// ```
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
@@ -338,15 +329,13 @@ where
     /// Redirect output to stderr if level is <= WARN:
     ///
     /// ```rust
-    /// use tracing::Level;
-    /// use tracing_subscriber::fmt::{self, writer::MakeWriterExt};
+    /// # use tracing_subscriber::prelude::*;
+    /// use tracing_subscriber::fmt::writer::MakeWriterExt;
     ///
-    /// let stderr = std::io::stderr.with_max_level(Level::WARN);
-    /// let subscriber = fmt::subscriber()
+    /// let stderr = std::io::stderr.with_max_level(tracing::Level::WARN);
+    /// let layer = json_subscriber::JsonLayer::stdout()
     ///     .map_writer(move |w| stderr.or_else(w));
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = subscriber.with_collector(tracing_subscriber::registry::Registry::default());
+    /// # tracing_subscriber::registry().with(layer);
     /// ```
     pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> JsonLayer<S, W2>
     where
@@ -367,7 +356,6 @@ where
     ///
     /// ```rust
     /// # use tracing_subscriber::prelude::*;
-    /// # use tracing_subscriber::registry;
     /// let mut layer = json_subscriber::JsonLayer::stdout();
     /// layer.add_static_field(
     ///     "hostname",
@@ -375,8 +363,7 @@ where
     ///         "hostname": get_hostname(),
     ///     }),
     /// );
-    ///
-    /// registry().with(layer);
+    /// # tracing_subscriber::registry().with(layer);
     /// # fn get_hostname() -> &'static str { "localhost" }
     /// ```
     pub fn add_static_field(&mut self, key: impl Into<String>, value: serde_json::Value) {
@@ -397,7 +384,6 @@ where
     ///
     /// ```rust
     /// # use tracing_subscriber::prelude::*;
-    /// # use tracing_subscriber::registry;
     /// let mut layer = json_subscriber::JsonLayer::stdout();
     /// layer.add_static_field(
     ///     "deleteMe",
@@ -405,7 +391,7 @@ where
     /// );
     /// layer.remove_field("deleteMe");
     ///
-    /// registry().with(layer);
+    /// # tracing_subscriber::registry().with(layer);
     /// ```
     pub fn remove_field(&mut self, key: impl Into<String>) {
         self.schema.remove(&SchemaKey::from(key.into()));

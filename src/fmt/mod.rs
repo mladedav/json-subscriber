@@ -108,6 +108,7 @@ impl Subscriber {
     /// # Examples
     ///
     /// ```rust
+    /// # use json_subscriber::fmt::Subscriber;
     /// let subscriber = Subscriber::builder()
     ///     .with_max_level(tracing::Level::INFO)
     ///     .with_target(false)

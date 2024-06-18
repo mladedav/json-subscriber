@@ -187,14 +187,10 @@ where
     /// Using `stderr` rather than `stdout`:
     ///
     /// ```rust
-    /// use std::io;
-    /// use tracing_subscriber::fmt;
-    ///
-    /// let fmt_subscriber = fmt::subscriber()
-    ///     .with_writer(io::stderr);
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = fmt_subscriber.with_collector(tracing_subscriber::registry::Registry::default());
+    /// # use tracing_subscriber::prelude::*;
+    /// let layer = json_subscriber::fmt::layer()
+    ///     .with_writer(std::io::stderr);
+    /// # tracing_subscriber::registry().with(layer);
     /// ```
     ///
     /// [`MakeWriter`]: MakeWriter
@@ -217,15 +213,13 @@ where
     /// Redirect output to stderr if level is <= WARN:
     ///
     /// ```rust
-    /// use tracing::Level;
-    /// use tracing_subscriber::fmt::{self, writer::MakeWriterExt};
+    /// # use tracing_subscriber::prelude::*;
+    /// use tracing_subscriber::fmt::writer::MakeWriterExt;
     ///
-    /// let stderr = std::io::stderr.with_max_level(Level::WARN);
-    /// let subscriber = fmt::subscriber()
+    /// let stderr = std::io::stderr.with_max_level(tracing::Level::WARN);
+    /// let layer = json_subscriber::fmt::layer()
     ///     .map_writer(move |w| stderr.or_else(w));
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = subscriber.with_collector(tracing_subscriber::registry::Registry::default());
+    /// # tracing_subscriber::registry().with(layer);
     /// ```
     pub fn map_writer<W2>(self, f: impl FnOnce(W) -> W2) -> Layer<S, W2>
     where
@@ -246,14 +240,12 @@ where
     /// Using [`TestWriter`] to let `cargo test` capture test output:
     ///
     /// ```rust
-    /// use std::io;
-    /// use tracing_subscriber::fmt;
+    /// # use tracing_subscriber::prelude::*;
+    /// use tracing_subscriber::fmt::writer::MakeWriterExt;
     ///
-    /// let fmt_subscriber = fmt::subscriber()
+    /// let layer = json_subscriber::fmt::layer()
     ///     .with_test_writer();
-    /// # // this is necessary for type inference.
-    /// # use tracing_subscriber::Subscribe as _;
-    /// # let _ = fmt_subscriber.with_collector(tracing_subscriber::registry::Registry::default());
+    /// # tracing_subscriber::registry().with(layer);
     /// ```
     /// [capturing]:
     /// https://doc.rust-lang.org/book/ch11-02-running-tests.html#showing-function-output
@@ -284,12 +276,11 @@ where
     /// #   std::io::stdout
     /// # }
     /// # fn main() {
-    /// let subscriber = fmt::subscriber().with_writer(non_blocking(std::io::stderr()));
-    /// let (subscriber, reload_handle) = reload::JsonLayer::new(subscriber);
-    /// #
-    /// # // specifying the Registry type is required
-    /// # let _: &reload::Handle<fmt::JsonLayer<S, W, T> = &reload_handle;
-    /// #
+    /// let layer = json_subscriber::fmt::layer().with_writer(non_blocking(std::io::stderr()));
+    /// let (layer, reload_handle) = reload::Layer::new(layer);
+    ///
+    /// tracing_subscriber::registry().with(layer).init();
+    ///
     /// info!("This will be logged to stderr");
     /// reload_handle.modify(|subscriber| *subscriber.writer_mut() = non_blocking(std::io::stdout()));
     /// info!("This will be logged to stdout");
@@ -308,7 +299,8 @@ where
     ///
     /// # Examples
     /// ```rust
-    /// let mut layer = tracing_json::layer();
+    /// # use tracing_subscriber::prelude::*;
+    /// let mut layer = json_subscriber::layer();
     /// let mut inner = layer.inner_layer_mut();
     ///
     /// inner.add_static_field(
@@ -317,6 +309,8 @@ where
     ///         "hostname": get_hostname(),
     ///     }),
     /// );
+    /// # tracing_subscriber::registry().with(layer);
+    /// # fn get_hostname() -> &'static str { "localhost" }
     /// ```
     ///
     /// [`reload::Handle::modify`]: tracing_subscriber::reload::Handle::modify

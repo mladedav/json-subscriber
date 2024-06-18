@@ -21,7 +21,8 @@
 //! ```rust
 //! use tracing::info;
 //! use json_subscriber;
-//!
+//! #
+//! # mod yak_shave { pub fn shave_all(n: u32) -> u32 { n } }
 //!
 //! // install global collector configured based on RUST_LOG env var.
 //! json_subscriber::fmt::init();
@@ -63,6 +64,8 @@
 //! `tracing-opentelemetry` layer.
 //!
 //! ```rust
+//! # #[cfg(opentelemetry)]
+//! # {
 //! let tracer = todo!();
 //! let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 //! let json = json_subscriber::layer()
@@ -74,6 +77,7 @@
 //!     .with(opentelemetry)
 //!     .with(json)
 //!     .init();
+//! # }
 //! ```
 //!
 //! This will produce log lines like for example this (without the formatting):
