@@ -15,6 +15,18 @@ use tracing_subscriber::{
     Registry,
 };
 
+use super::names::{
+    CURRENT_SPAN,
+    FIELDS,
+    FILENAME,
+    LEVEL,
+    LINE_NUMBER,
+    SPAN_LIST,
+    TARGET,
+    THREAD_ID,
+    THREAD_NAME,
+    TIMESTAMP,
+};
 use crate::layer::JsonLayer;
 
 /// Configures and constructs `Subscriber`s.
@@ -142,19 +154,42 @@ where
         let mut layer = JsonLayer::<S>::new(self.make_writer);
 
         if self.display_timestamp {
-            layer.with_timer(self.timer);
+            layer.with_timer(TIMESTAMP, self.timer);
         }
 
-        layer
-            .with_level(self.display_level)
-            .flatten_event(self.flatten_event)
-            .with_target(self.display_target)
-            .with_file(self.display_filename)
-            .with_line_number(self.display_line_number)
-            .with_current_span(self.display_current_span)
-            .with_span_list(self.display_span_list)
-            .with_thread_names(self.display_thread_name)
-            .with_thread_ids(self.display_thread_id);
+        if self.display_level {
+            layer.with_level(LEVEL);
+        }
+
+        if self.display_target {
+            layer.with_target(TARGET);
+        }
+
+        if self.display_filename {
+            layer.with_file(FILENAME);
+        }
+
+        if self.display_line_number {
+            layer.with_line_number(LINE_NUMBER);
+        }
+
+        if self.display_thread_name {
+            layer.with_thread_names(THREAD_NAME);
+        }
+
+        if self.display_thread_id {
+            layer.with_thread_ids(THREAD_ID);
+        }
+
+        layer.with_event(FIELDS, self.flatten_event);
+
+        if self.display_current_span {
+            layer.with_current_span(CURRENT_SPAN);
+        }
+
+        if self.display_span_list {
+            layer.with_span_list(SPAN_LIST);
+        }
 
         (layer, self.filter)
     }

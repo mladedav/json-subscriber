@@ -12,6 +12,18 @@ use tracing_subscriber::{
     Registry,
 };
 
+use super::names::{
+    CURRENT_SPAN,
+    FIELDS,
+    FILENAME,
+    LEVEL,
+    LINE_NUMBER,
+    SPAN_LIST,
+    TARGET,
+    THREAD_ID,
+    THREAD_NAME,
+    TIMESTAMP,
+};
 use crate::layer::JsonLayer;
 
 /// A [`Layer`] that logs JSON formatted representations of `tracing` events.
@@ -60,12 +72,12 @@ impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Default for Layer<S> {
 
         inner
             // If we do not call this, fields are not printed at all.
-            .flatten_event(false)
-            .with_timer(SystemTime)
-            .with_target(true)
-            .with_level(true)
-            .with_current_span(true)
-            .with_span_list(true);
+            .with_event(FIELDS, false)
+            .with_timer(TIMESTAMP, SystemTime)
+            .with_target(TARGET)
+            .with_level(LEVEL)
+            .with_current_span(CURRENT_SPAN)
+            .with_span_list(SPAN_LIST);
 
         Self { inner }
     }
@@ -329,13 +341,17 @@ where
 
     /// Sets the JSON subscriber being built to flatten event metadata.
     pub fn flatten_event(mut self, flatten_event: bool) -> Self {
-        self.inner.flatten_event(flatten_event);
+        self.inner.with_event(FIELDS, flatten_event);
         self
     }
 
     /// Sets whether or not the formatter will include the current span in formatted events.
     pub fn with_current_span(mut self, display_current_span: bool) -> Self {
-        self.inner.with_current_span(display_current_span);
+        if display_current_span {
+            self.inner.with_current_span(CURRENT_SPAN);
+        } else {
+            self.inner.remove_field(CURRENT_SPAN);
+        }
         self
     }
 
@@ -344,7 +360,11 @@ where
     ///
     /// This overrides any previous calls to [`with_flat_span_list`](Self::with_flat_span_list).
     pub fn with_span_list(mut self, display_span_list: bool) -> Self {
-        self.inner.with_span_list(display_span_list);
+        if display_span_list {
+            self.inner.with_span_list(SPAN_LIST);
+        } else {
+            self.inner.remove_field(SPAN_LIST);
+        }
         self
     }
 
@@ -355,9 +375,9 @@ where
     /// This overrides any previous calls to [`with_span_list`](Self::with_span_list).
     pub fn with_flat_span_list(mut self, flatten_span_list: bool) -> Self {
         if flatten_span_list {
-            self.inner.flatten_span_list();
+            self.inner.flatten_span_list(SPAN_LIST);
         } else {
-            self.inner.with_span_list(false);
+            self.inner.remove_field(SPAN_LIST);
         }
         self
     }
@@ -377,19 +397,23 @@ where
     /// [`LocalTime`]: tracing_subscriber::fmt::time::LocalTime
     /// [`time` crate]: https://docs.rs/time/0.3
     pub fn with_timer<T: FormatTime + Send + Sync + 'static>(mut self, timer: T) -> Self {
-        self.inner.with_timer(timer);
+        self.inner.with_timer(TIMESTAMP, timer);
         self
     }
 
     /// Do not emit timestamps with log messages.
     pub fn without_time(mut self) -> Self {
-        self.inner.without_time();
+        self.inner.remove_field(TIMESTAMP);
         self
     }
 
     /// Sets whether or not an event's target is displayed.
     pub fn with_target(mut self, display_target: bool) -> Self {
-        self.inner.with_target(display_target);
+        if display_target {
+            self.inner.with_target(TARGET);
+        } else {
+            self.inner.remove_field(TARGET)
+        }
 
         self
     }
@@ -399,7 +423,11 @@ where
     ///
     /// [file]: tracing_core::Metadata::file
     pub fn with_file(mut self, display_filename: bool) -> Self {
-        self.inner.with_file(display_filename);
+        if display_filename {
+            self.inner.with_file(FILENAME);
+        } else {
+            self.inner.remove_field(FILENAME);
+        }
         self
     }
 
@@ -408,13 +436,21 @@ where
     ///
     /// [line]: tracing_core::Metadata::line
     pub fn with_line_number(mut self, display_line_number: bool) -> Self {
-        self.inner.with_line_number(display_line_number);
+        if display_line_number {
+            self.inner.with_line_number(LINE_NUMBER);
+        } else {
+            self.inner.remove_field(LINE_NUMBER);
+        }
         self
     }
 
     /// Sets whether or not an event's level is displayed.
     pub fn with_level(mut self, display_level: bool) -> Self {
-        self.inner.with_level(display_level);
+        if display_level {
+            self.inner.with_level(LEVEL);
+        } else {
+            self.inner.remove_field(LEVEL);
+        }
         self
     }
 
@@ -423,7 +459,11 @@ where
     ///
     /// [name]: std::thread#naming-threads
     pub fn with_thread_names(mut self, display_thread_name: bool) -> Self {
-        self.inner.with_thread_names(display_thread_name);
+        if display_thread_name {
+            self.inner.with_thread_names(THREAD_NAME);
+        } else {
+            self.inner.remove_field(THREAD_NAME);
+        }
         self
     }
 
@@ -432,7 +472,12 @@ where
     ///
     /// [thread ID]: std::thread::ThreadId
     pub fn with_thread_ids(mut self, display_thread_id: bool) -> Self {
-        self.inner.with_thread_ids(display_thread_id);
+        if display_thread_id {
+            self.inner.with_thread_ids(THREAD_ID);
+        } else {
+            self.inner.remove_field(THREAD_ID);
+        }
+
         self
     }
 

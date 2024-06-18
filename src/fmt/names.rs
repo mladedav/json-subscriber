@@ -1,0 +1,10 @@
+pub(super) const CURRENT_SPAN: &str = "span";
+pub(super) const FIELDS: &str = "fields";
+pub(super) const FILENAME: &str = "filename";
+pub(super) const LEVEL: &str = "level";
+pub(super) const LINE_NUMBER: &str = "line_number";
+pub(super) const SPAN_LIST: &str = "spans";
+pub(super) const TARGET: &str = "target";
+pub(super) const THREAD_ID: &str = "threadId";
+pub(super) const THREAD_NAME: &str = "threadName";
+pub(super) const TIMESTAMP: &str = "timestamp";

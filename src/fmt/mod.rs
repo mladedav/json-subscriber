@@ -10,6 +10,7 @@ use tracing_subscriber::{registry::LookupSpan, util::SubscriberInitExt};
 
 mod builder;
 mod layer;
+mod names;
 
 /// Returns a new [`SubscriberBuilder`] for configuring a json [formatting subscriber].
 ///
