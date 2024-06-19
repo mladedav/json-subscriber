@@ -17,12 +17,13 @@ use crate::{
 };
 
 /// The same thing as [`SpanRef`] but for events.
-pub struct EventRef<'a, 'b, R> {
+pub struct EventRef<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> {
     context: &'a Context<'b, R>,
     event: &'a Event<'b>,
+    span: Option<SpanRef<'c, R>>,
 }
 
-impl<'a, 'b, R> Deref for EventRef<'a, 'b, R> {
+impl<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> Deref for EventRef<'a, 'b, 'c, R> {
     type Target = Event<'a>;
 
     fn deref(&self) -> &Self::Target {
@@ -30,7 +31,7 @@ impl<'a, 'b, R> Deref for EventRef<'a, 'b, R> {
     }
 }
 
-impl<'a, 'b, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, 'b, R> {
+impl<'a, 'b, 'c, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, 'b, 'c, R> {
     /// Returns the span's name,
     #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
@@ -48,8 +49,8 @@ impl<'a, 'b, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, 'b, 
 
     /// Returns a `SpanRef` describing this span's parent, or `None` if this
     /// span is the root of its trace tree.
-    pub fn parent_span(&self) -> Option<SpanRef<'_, R>> {
-        self.context.event_span(self.event)
+    pub fn parent_span(&self) -> Option<&SpanRef<'c, R>> {
+        self.span.as_ref()
     }
 
     pub(super) fn event(&self) -> &Event<'_> {
@@ -78,19 +79,19 @@ where
 
             let mut serializer = serializer.serialize_map(None)?;
 
+            let current_span = ctx.event_span(event);
+
             let event_ref = EventRef {
                 context: &ctx,
                 event,
+                span: current_span,
             };
 
             let mut serialized_anything = false;
             let mut serialized_anything_serde = false;
 
-            let current_span = event_ref.parent_span();
-
             for (key, value) in &self.schema {
-                let Some(value) = resolve_json_value(value, &event_ref, current_span.as_ref())
-                else {
+                let Some(value) = resolve_json_value(value, &event_ref) else {
                     continue;
                 };
                 match key {
@@ -209,25 +210,32 @@ where
     }
 }
 
-fn resolve_json_value<'a, 'b, 'c, S: for<'lookup> LookupSpan<'lookup>>(
+fn resolve_json_value<'a, S: Subscriber + for<'lookup> LookupSpan<'lookup>>(
     value: &'a JsonValue<S>,
-    event: &EventRef<'_, '_, S>,
-    span: Option<&'c SpanRef<'b, S>>,
+    event: &EventRef<'_, '_, '_, S>,
 ) -> Option<MaybeCached<'a, S>> {
     match value {
         JsonValue::Serde(value) => Some(MaybeCached::Serde(Cow::Borrowed(value))),
         JsonValue::DynamicFromEvent(fun) => fun(event).map(Cow::Owned).map(MaybeCached::Serde),
         JsonValue::DynamicFromSpan(fun) => {
-            span.and_then(fun).map(Cow::Owned).map(MaybeCached::Serde)
+            event
+                .parent_span()
+                .and_then(fun)
+                .map(Cow::Owned)
+                .map(MaybeCached::Serde)
         },
-        JsonValue::DynamicCachedFromSpan(fun) => span.and_then(fun).map(MaybeCached::Cached),
+        JsonValue::DynamicCachedFromSpan(fun) => {
+            event.parent_span().and_then(fun).map(MaybeCached::Cached)
+        },
         JsonValue::DynamicRawFromEvent(fun) => Some(MaybeCached::Raw(fun)),
     }
 }
 
 #[allow(clippy::type_complexity)]
-enum MaybeCached<'a, S> {
+enum MaybeCached<'a, S: for<'lookup> LookupSpan<'lookup>> {
     Serde(Cow<'a, DynamicJsonValue>),
     Cached(Cached),
-    Raw(&'a Box<dyn Fn(&EventRef<'_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>),
+    Raw(
+        &'a Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
+    ),
 }

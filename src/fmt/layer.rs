@@ -62,7 +62,7 @@ use crate::layer::JsonLayer;
 /// ```
 ///
 /// [`Layer`]: tracing_subscriber::Layer
-pub struct Layer<S = Registry, W = fn() -> io::Stdout> {
+pub struct Layer<S: for<'lookup> LookupSpan<'lookup> = Registry, W = fn() -> io::Stdout> {
     inner: JsonLayer<S, W>,
 }
 
@@ -86,7 +86,7 @@ impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Default for Layer<S> {
 impl<S, W> Subscribe<S> for Layer<S, W>
 where
     JsonLayer<S, W>: Subscribe<S>,
-    S: Subscriber,
+    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
     fn on_register_dispatch(&self, subscriber: &tracing::Dispatch) {
         self.inner.on_register_dispatch(subscriber)

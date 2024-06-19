@@ -26,7 +26,7 @@ use crate::{cached::Cached, fields::JsonFields, visitor::JsonVisitor};
 ///
 /// See [`fmt::Layer`](crate::fmt::Layer) for an alternative especially if you're migrating from
 /// `tracing_subscriber`.
-pub struct JsonLayer<S = Registry, W = fn() -> io::Stdout> {
+pub struct JsonLayer<S: for<'lookup> LookupSpan<'lookup> = Registry, W = fn() -> io::Stdout> {
     make_writer: W,
     log_internal_errors: bool,
     schema: BTreeMap<SchemaKey, JsonValue<S>>,
@@ -62,13 +62,15 @@ pub(crate) struct DynamicJsonValue {
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) enum JsonValue<S> {
+pub(crate) enum JsonValue<S: for<'lookup> LookupSpan<'lookup>> {
     Serde(DynamicJsonValue),
-    DynamicFromEvent(Box<dyn Fn(&EventRef<'_, '_, S>) -> Option<DynamicJsonValue> + Send + Sync>),
+    DynamicFromEvent(
+        Box<dyn Fn(&EventRef<'_, '_, '_, S>) -> Option<DynamicJsonValue> + Send + Sync>,
+    ),
     DynamicFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<DynamicJsonValue> + Send + Sync>),
     DynamicCachedFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
     DynamicRawFromEvent(
-        Box<dyn Fn(&EventRef<'_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
+        Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
     ),
 }
 
