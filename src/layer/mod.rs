@@ -64,15 +64,11 @@ pub(crate) struct DynamicJsonValue {
 #[allow(clippy::type_complexity)]
 pub(crate) enum JsonValue<S> {
     Serde(DynamicJsonValue),
-    DynamicFromEvent(
-        Box<dyn for<'a> Fn(&'a EventRef<'_, S>) -> Option<DynamicJsonValue> + Send + Sync>,
-    ),
-    DynamicFromSpan(
-        Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<DynamicJsonValue> + Send + Sync>,
-    ),
-    DynamicCachedFromSpan(Box<dyn for<'a> Fn(&'a SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
+    DynamicFromEvent(Box<dyn Fn(&EventRef<'_, '_, S>) -> Option<DynamicJsonValue> + Send + Sync>),
+    DynamicFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<DynamicJsonValue> + Send + Sync>),
+    DynamicCachedFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
     DynamicRawFromEvent(
-        Box<dyn for<'a> Fn(&'a EventRef<'_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
+        Box<dyn Fn(&EventRef<'_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
     ),
 }
 
@@ -395,6 +391,38 @@ where
     /// ```
     pub fn remove_field(&mut self, key: impl Into<String>) {
         self.schema.remove(&SchemaKey::from(key.into()));
+    }
+
+    pub fn add_dynamic_field<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
+    where
+        for<'a> Fun: Fn(&'a Event<'_>, &Context<'_, S>) -> Option<Res> + Send + Sync + 'a,
+        Res: serde::Serialize,
+    {
+        self.schema.insert(
+            SchemaKey::from(key.into()),
+            JsonValue::DynamicFromEvent(Box::new(move |event| {
+                Some(DynamicJsonValue {
+                    flatten: false,
+                    value: serde_json::to_value(mapper(event.event(), event.context())).ok()?,
+                })
+            })),
+        );
+    }
+
+    pub fn add_from_span<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
+    where
+        for<'a> Fun: Fn(&'a SpanRef<'_, S>) -> Option<Res> + Send + Sync + 'a,
+        Res: serde::Serialize,
+    {
+        self.schema.insert(
+            SchemaKey::from(key.into()),
+            JsonValue::DynamicFromSpan(Box::new(move |span| {
+                Some(DynamicJsonValue {
+                    flatten: false,
+                    value: serde_json::to_value(mapper(span)).ok()?,
+                })
+            })),
+        );
     }
 
     /// Adds a field with a given key to the output. The value will be serialized JSON of the

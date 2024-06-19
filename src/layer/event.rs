@@ -17,12 +17,12 @@ use crate::{
 };
 
 /// The same thing as [`SpanRef`] but for events.
-pub struct EventRef<'a, R> {
-    context: &'a Context<'a, R>,
-    event: &'a Event<'a>,
+pub struct EventRef<'a, 'b, R> {
+    context: &'a Context<'b, R>,
+    event: &'a Event<'b>,
 }
 
-impl<'a, R> Deref for EventRef<'a, R> {
+impl<'a, 'b, R> Deref for EventRef<'a, 'b, R> {
     type Target = Event<'a>;
 
     fn deref(&self) -> &Self::Target {
@@ -30,7 +30,7 @@ impl<'a, R> Deref for EventRef<'a, R> {
     }
 }
 
-impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
+impl<'a, 'b, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, 'b, R> {
     /// Returns the span's name,
     #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
@@ -48,8 +48,16 @@ impl<'a, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, R> {
 
     /// Returns a `SpanRef` describing this span's parent, or `None` if this
     /// span is the root of its trace tree.
-    pub fn parent_span(&self) -> Option<SpanRef<'a, R>> {
+    pub fn parent_span(&self) -> Option<SpanRef<'_, R>> {
         self.context.event_span(self.event)
+    }
+
+    pub(super) fn event(&self) -> &Event<'_> {
+        self.event
+    }
+
+    pub(super) fn context(&self) -> &Context<'_, R> {
+        self.context
     }
 }
 
@@ -201,10 +209,10 @@ where
     }
 }
 
-fn resolve_json_value<'a, S: for<'lookup> LookupSpan<'lookup>>(
+fn resolve_json_value<'a, 'b, 'c, S: for<'lookup> LookupSpan<'lookup>>(
     value: &'a JsonValue<S>,
-    event: &EventRef<'_, S>,
-    span: Option<&SpanRef<'_, S>>,
+    event: &EventRef<'_, '_, S>,
+    span: Option<&'c SpanRef<'b, S>>,
 ) -> Option<MaybeCached<'a, S>> {
     match value {
         JsonValue::Serde(value) => Some(MaybeCached::Serde(Cow::Borrowed(value))),
@@ -221,5 +229,5 @@ fn resolve_json_value<'a, S: for<'lookup> LookupSpan<'lookup>>(
 enum MaybeCached<'a, S> {
     Serde(Cow<'a, DynamicJsonValue>),
     Cached(Cached),
-    Raw(&'a Box<dyn Fn(&EventRef<'_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>),
+    Raw(&'a Box<dyn Fn(&EventRef<'_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>),
 }
