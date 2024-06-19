@@ -19,7 +19,11 @@ mod event;
 
 use event::EventRef;
 
-use crate::{cached::Cached, fields::JsonFields, visitor::JsonVisitor};
+use crate::{
+    cached::Cached,
+    fields::{JsonFields, JsonFieldsInner},
+    visitor::JsonVisitor,
+};
 
 /// Layer that implements logging JSON to a configured output. This is a lower-level API that may
 /// change a bit in next versions.
@@ -90,19 +94,17 @@ where
         let mut extensions = span.extensions_mut();
 
         if extensions.get_mut::<JsonFields>().is_none() {
-            let mut fields = JsonFields::default();
+            let mut fields = JsonFieldsInner::default();
             let mut visitor = JsonVisitor::new(&mut fields);
             attrs.record(&mut visitor);
             fields
                 .fields
                 .insert("name", serde_json::Value::from(attrs.metadata().name()));
-            let serialized = serde_json::to_string(&fields).unwrap();
-            fields.serialized = Some(Arc::from(serialized.as_str()));
+            let fields = fields.finish();
             extensions.insert(fields);
         } else if self.log_internal_errors {
             eprintln!(
-                "[json-subscriber] Unable to format the following event, ignoring: {:?}",
-                attrs
+                "[json-subscriber] Unable to format the following event, ignoring: {attrs:?}",
             );
         }
     }
@@ -126,9 +128,9 @@ where
             return;
         };
 
-        values.record(&mut JsonVisitor::new(fields));
+        values.record(&mut JsonVisitor::new(&mut fields.inner));
         let serialized = serde_json::to_string(&fields).unwrap();
-        fields.serialized = Some(Arc::from(serialized.as_str()));
+        fields.serialized = Arc::from(serialized.as_str());
     }
 
     fn on_enter(&self, _id: &Id, _ctx: Context<'_, S>) {}
@@ -146,26 +148,22 @@ where
             let borrow = buf.try_borrow_mut();
             let mut a;
             let mut b;
-            let buf = match borrow {
-                Ok(buf) => {
-                    a = buf;
-                    &mut *a
-                },
-                _ => {
-                    b = String::new();
-                    &mut b
-                },
+            let buf = if let Ok(buf) = borrow {
+                a = buf;
+                &mut *a
+            } else {
+                b = String::new();
+                &mut b
             };
 
-            if self.format_event(ctx, buf, event).is_ok() {
+            if self.format_event(&ctx, buf, event).is_ok() {
                 let mut writer = self.make_writer.make_writer_for(event.metadata());
                 let res = io::Write::write_all(&mut writer, buf.as_bytes());
                 if self.log_internal_errors {
                     if let Err(e) = res {
                         eprintln!(
                             "[tracing-json] Unable to write an event to the Writer for this \
-                             Subscriber! Error: {}\n",
-                            e
+                             Subscriber! Error: {e}\n",
                         );
                     }
                 }
@@ -471,7 +469,7 @@ where
     /// # }
     /// ```
     pub fn serialize_extension<Ext: Serialize + 'static>(&mut self, key: impl Into<String>) {
-        self.add_from_extension_ref(key, |extension: &Ext| Some(extension))
+        self.add_from_extension_ref(key, |extension: &Ext| Some(extension));
     }
 
     /// Adds a field with a given key to the output. The user-provided closure can transform the
@@ -632,7 +630,7 @@ where
             JsonValue::DynamicCachedFromSpan(Box::new(move |span| {
                 span.extensions()
                     .get::<JsonFields>()
-                    .map(|fields| Cached::Raw(fields.serialized.as_ref().unwrap().clone()))
+                    .map(|fields| Cached::Raw(fields.serialized.clone()))
             })),
         );
         self
@@ -647,10 +645,10 @@ where
                 Some(Cached::Array(
                     span.scope()
                         .from_root()
-                        .flat_map(|span| {
+                        .filter_map(|span| {
                             span.extensions()
                                 .get::<JsonFields>()
-                                .map(|fields| fields.serialized.as_ref().unwrap().clone())
+                                .map(|fields| fields.serialized.clone())
                         })
                         .collect::<Vec<_>>(),
                 ))
@@ -678,6 +676,7 @@ where
                             };
                             accumulator.extend(
                                 fields
+                                    .inner
                                     .fields
                                     .iter()
                                     .map(|(key, value)| (*key, value.clone())),
@@ -742,15 +741,11 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
-                event
-                    .metadata()
-                    .file()
-                    .map(|file| {
-                        writer.write_str("\"")?;
-                        writer.write_str(file)?;
-                        writer.write_str("\"")
-                    })
-                    .unwrap_or(Ok(()))
+                event.metadata().file().map_or(Ok(()), |file| {
+                    writer.write_str("\"")?;
+                    writer.write_str(file)?;
+                    writer.write_str("\"")
+                })
             })),
         );
         self
@@ -767,8 +762,7 @@ where
                 event
                     .metadata()
                     .line()
-                    .map(|file| write!(writer, "{}", file))
-                    .unwrap_or(Ok(()))
+                    .map_or(Ok(()), |line| write!(writer, "{line}"))
             })),
         );
         self
@@ -795,14 +789,11 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
-                std::thread::current()
-                    .name()
-                    .map(|name| {
-                        writer.write_str("\"")?;
-                        writer.write_str(name)?;
-                        writer.write_str("\"")
-                    })
-                    .unwrap_or(Ok(()))
+                std::thread::current().name().map_or(Ok(()), |name| {
+                    writer.write_str("\"")?;
+                    writer.write_str(name)?;
+                    writer.write_str("\"")
+                })
             })),
         );
         self
@@ -883,14 +874,14 @@ mod tests {
     use crate::tests::MockMakeWriter;
 
     fn test_json<W, T>(
-        expected: serde_json::Value,
+        expected: &serde_json::Value,
         layer: JsonLayer<Registry, W>,
         producer: impl FnOnce() -> T,
     ) {
         let actual = produce_log_line(layer, producer);
         assert_eq!(
             expected,
-            serde_json::from_str::<serde_json::Value>(&actual).unwrap(),
+            &serde_json::from_str::<serde_json::Value>(&actual).unwrap(),
         );
     }
 
@@ -927,8 +918,8 @@ mod tests {
             "one": 1,
         });
 
-        test_json(expected, layer, || {
-            tracing::info!(does = "not matter", "whatever")
+        test_json(&expected, layer, || {
+            tracing::info!(does = "not matter", "whatever");
         });
     }
 }

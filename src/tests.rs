@@ -15,6 +15,7 @@ impl MockWriter {
         Self { buf }
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn map_error<Guard>(err: TryLockError<Guard>) -> io::Error {
         match err {
             TryLockError::WouldBlock => io::Error::from(io::ErrorKind::WouldBlock),

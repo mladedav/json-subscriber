@@ -2,16 +2,16 @@ use std::{collections::btree_map::Entry, fmt};
 
 use tracing_core::field;
 
-use crate::fields::JsonFields;
+use crate::fields::JsonFieldsInner;
 
 /// The [visitor] produced by [`JsonFields`]'s [`MakeVisitor`] implementation.
 ///
 /// [visitor]: tracing_subscriber::field::Visit
 /// [`MakeVisitor`]: tracing_subscriber::field::MakeVisitor
-pub(crate) struct JsonVisitor<'a>(&'a mut JsonFields);
+pub(crate) struct JsonVisitor<'a>(&'a mut JsonFieldsInner);
 
 impl<'a> JsonVisitor<'a> {
-    pub fn new(fields: &'a mut JsonFields) -> Self {
+    pub fn new(fields: &'a mut JsonFieldsInner) -> Self {
         Self(fields)
     }
 }
@@ -117,12 +117,12 @@ impl<'a> field::Visit for JsonVisitor<'a> {
             name if name.starts_with("r#") => {
                 self.0
                     .fields
-                    .insert(&name[2..], serde_json::Value::from(format!("{:?}", value)));
+                    .insert(&name[2..], serde_json::Value::from(format!("{value:?}")));
             },
             name => {
                 self.0
                     .fields
-                    .insert(name, serde_json::Value::from(format!("{:?}", value)));
+                    .insert(name, serde_json::Value::from(format!("{value:?}")));
             },
         };
     }

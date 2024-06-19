@@ -75,6 +75,7 @@ mod names;
 /// [`init`]: SubscriberBuilder::init()
 /// [`try_init`]: SubscriberBuilder::try_init()
 /// [`finish`]: SubscriberBuilder::finish()
+#[must_use]
 pub fn fmt() -> SubscriberBuilder {
     SubscriberBuilder::default()
 }
@@ -88,6 +89,7 @@ pub fn fmt() -> SubscriberBuilder {
 /// [json formatting layer]: Layer
 /// [composed]: tracing_subscriber::layer
 /// [`Layer::default()`]: Layer::default
+#[must_use]
 pub fn layer<S>() -> Layer<S>
 where
     S: Collect + for<'lookup> LookupSpan<'lookup>,
@@ -114,6 +116,7 @@ impl Subscriber {
     ///     .with_target(false)
     ///     .finish();
     /// ```
+    #[must_use]
     pub fn builder() -> SubscriberBuilder {
         SubscriberBuilder::default()
     }
@@ -193,7 +196,7 @@ pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 /// depends on what [feature flags](crate#feature-flags) are enabled.
 ///
 /// If the `tracing-log` feature is enabled, this will also install
-/// the LogTracer to convert `Log` records into `tracing` `Event`s.
+/// the `LogTracer` to convert `Log` records into `tracing` `Event`s.
 ///
 /// If the `env-filter` feature is enabled, this is shorthand for
 ///
@@ -210,5 +213,5 @@ pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 ///
 /// [`RUST_LOG` environment variable]: tracing_subscriber::EnvFilter::DEFAULT_ENV
 pub fn init() {
-    try_init().expect("Unable to install global subscriber")
+    try_init().expect("Unable to install global subscriber");
 }

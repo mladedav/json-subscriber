@@ -98,6 +98,10 @@
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
+#![warn(clippy::pedantic)]
+#![allow(clippy::struct_excessive_bools)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_lines)]
 
 mod cached;
 mod cursor;

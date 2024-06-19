@@ -89,11 +89,11 @@ where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
     fn on_register_dispatch(&self, subscriber: &tracing::Dispatch) {
-        self.inner.on_register_dispatch(subscriber)
+        self.inner.on_register_dispatch(subscriber);
     }
 
     fn on_layer(&mut self, subscriber: &mut S) {
-        self.inner.on_layer(subscriber)
+        self.inner.on_layer(subscriber);
     }
 
     fn register_callsite(
@@ -117,7 +117,7 @@ where
         id: &tracing_core::span::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.inner.on_new_span(attrs, id, ctx)
+        self.inner.on_new_span(attrs, id, ctx);
     }
 
     fn on_record(
@@ -126,7 +126,7 @@ where
         values: &tracing_core::span::Record<'_>,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.inner.on_record(span, values, ctx)
+        self.inner.on_record(span, values, ctx);
     }
 
     fn on_follows_from(
@@ -135,7 +135,7 @@ where
         follows: &tracing_core::span::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.inner.on_follows_from(span, follows, ctx)
+        self.inner.on_follows_from(span, follows, ctx);
     }
 
     fn event_enabled(
@@ -147,7 +147,7 @@ where
     }
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
-        self.inner.on_event(event, ctx)
+        self.inner.on_event(event, ctx);
     }
 
     fn on_enter(
@@ -155,15 +155,15 @@ where
         id: &tracing_core::span::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.inner.on_enter(id, ctx)
+        self.inner.on_enter(id, ctx);
     }
 
     fn on_exit(&self, id: &tracing_core::span::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
-        self.inner.on_exit(id, ctx)
+        self.inner.on_exit(id, ctx);
     }
 
     fn on_close(&self, id: tracing_core::span::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
-        self.inner.on_close(id, ctx)
+        self.inner.on_close(id, ctx);
     }
 
     fn on_id_change(
@@ -172,7 +172,7 @@ where
         new: &tracing_core::span::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.inner.on_id_change(old, new, ctx)
+        self.inner.on_id_change(old, new, ctx);
     }
 }
 
@@ -328,18 +328,21 @@ where
     /// If writing to the writer fails, the error message is printed to stderr as a fallback.
     ///
     /// [`FormatEvent`]: tracing_subscriber::fmt::FormatEvent
+    #[must_use]
     pub fn log_internal_errors(mut self, log_internal_errors: bool) -> Self {
         self.inner.log_internal_errors(log_internal_errors);
         self
     }
 
     /// Sets the JSON subscriber being built to flatten event metadata.
+    #[must_use]
     pub fn flatten_event(mut self, flatten_event: bool) -> Self {
         self.inner.with_event(FIELDS, flatten_event);
         self
     }
 
     /// Sets whether or not the formatter will include the current span in formatted events.
+    #[must_use]
     pub fn with_current_span(mut self, display_current_span: bool) -> Self {
         if display_current_span {
             self.inner.with_current_span(CURRENT_SPAN);
@@ -353,6 +356,7 @@ where
     /// entered spans in formatted events.
     ///
     /// This overrides any previous calls to [`with_flat_span_list`](Self::with_flat_span_list).
+    #[must_use]
     pub fn with_span_list(mut self, display_span_list: bool) -> Self {
         if display_span_list {
             self.inner.with_span_list(SPAN_LIST);
@@ -367,6 +371,7 @@ where
     /// overrides the values of spans that are closer to the root spans.
     ///
     /// This overrides any previous calls to [`with_span_list`](Self::with_span_list).
+    #[must_use]
     pub fn with_flat_span_list(mut self, flatten_span_list: bool) -> Self {
         if flatten_span_list {
             self.inner.flatten_span_list(SPAN_LIST);
@@ -390,23 +395,26 @@ where
     /// [`UtcTime`]: tracing_subscriber::fmt::time::UtcTime
     /// [`LocalTime`]: tracing_subscriber::fmt::time::LocalTime
     /// [`time` crate]: https://docs.rs/time/0.3
+    #[must_use]
     pub fn with_timer<T: FormatTime + Send + Sync + 'static>(mut self, timer: T) -> Self {
         self.inner.with_timer(TIMESTAMP, timer);
         self
     }
 
     /// Do not emit timestamps with log messages.
+    #[must_use]
     pub fn without_time(mut self) -> Self {
         self.inner.remove_field(TIMESTAMP);
         self
     }
 
     /// Sets whether or not an event's target is displayed.
+    #[must_use]
     pub fn with_target(mut self, display_target: bool) -> Self {
         if display_target {
             self.inner.with_target(TARGET);
         } else {
-            self.inner.remove_field(TARGET)
+            self.inner.remove_field(TARGET);
         }
 
         self
@@ -416,6 +424,7 @@ where
     /// displayed.
     ///
     /// [file]: tracing_core::Metadata::file
+    #[must_use]
     pub fn with_file(mut self, display_filename: bool) -> Self {
         if display_filename {
             self.inner.with_file(FILENAME);
@@ -429,6 +438,7 @@ where
     /// displayed.
     ///
     /// [line]: tracing_core::Metadata::line
+    #[must_use]
     pub fn with_line_number(mut self, display_line_number: bool) -> Self {
         if display_line_number {
             self.inner.with_line_number(LINE_NUMBER);
@@ -439,6 +449,7 @@ where
     }
 
     /// Sets whether or not an event's level is displayed.
+    #[must_use]
     pub fn with_level(mut self, display_level: bool) -> Self {
         if display_level {
             self.inner.with_level(LEVEL);
@@ -452,6 +463,7 @@ where
     /// when formatting events.
     ///
     /// [name]: std::thread#naming-threads
+    #[must_use]
     pub fn with_thread_names(mut self, display_thread_name: bool) -> Self {
         if display_thread_name {
             self.inner.with_thread_names(THREAD_NAME);
@@ -465,6 +477,7 @@ where
     /// when formatting events.
     ///
     /// [thread ID]: std::thread::ThreadId
+    #[must_use]
     pub fn with_thread_ids(mut self, display_thread_id: bool) -> Self {
         if display_thread_id {
             self.inner.with_thread_ids(THREAD_ID);
@@ -481,6 +494,7 @@ where
     /// [OpenTelemetry]: https://opentelemetry.io
     #[cfg(feature = "opentelemetry")]
     #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+    #[must_use]
     pub fn with_opentelemetry_ids(mut self, display_opentelemetry_ids: bool) -> Self {
         self.inner.with_opentelemetry_ids(display_opentelemetry_ids);
         self
@@ -497,14 +511,14 @@ mod tests {
     use crate::tests::{MockMakeWriter, MockTime};
 
     fn test_json<W, T>(
-        expected: serde_json::Value,
+        expected: &serde_json::Value,
         layer: Layer<Registry, W>,
         producer: impl FnOnce() -> T,
     ) {
         let actual = produce_log_line(layer, producer);
         assert_eq!(
             expected,
-            serde_json::from_str::<serde_json::Value>(&actual).unwrap(),
+            &serde_json::from_str::<serde_json::Value>(&actual).unwrap(),
         );
     }
 
@@ -548,7 +562,7 @@ mod tests {
 
         let layer = Layer::default();
 
-        test_json(expected, layer, || {
+        test_json(&expected, layer, || {
             let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
             tracing::info!("some json test");
@@ -582,7 +596,7 @@ mod tests {
             .flatten_event(true)
             .with_current_span(true)
             .with_span_list(true);
-        test_json(expected, layer, || {
+        test_json(&expected, layer, || {
             let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
             tracing::info!("some json test");
@@ -635,7 +649,7 @@ mod tests {
             .with_flat_span_list(true)
             .with_current_span(false);
 
-        test_json(expected, layer, || {
+        test_json(&expected, layer, || {
             let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
             let _guard = span.enter();
             let child =

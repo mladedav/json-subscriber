@@ -207,7 +207,7 @@ where
     /// not already set.
     ///
     /// If the `tracing-log` feature is enabled, this will also install
-    /// the LogTracer to convert `Log` records into `tracing` `Event`s.
+    /// the `LogTracer` to convert `Log` records into `tracing` `Event`s.
     ///
     /// # Errors
     /// Returns an Error if the initialization was unsuccessful, likely
@@ -223,26 +223,28 @@ where
     /// Install this Subscriber as the global default.
     ///
     /// If the `tracing-log` feature is enabled, this will also install
-    /// the LogTracer to convert `Log` records into `tracing` `Event`s.
+    /// the `LogTracer` to convert `Log` records into `tracing` `Event`s.
     ///
     /// # Panics
     /// Panics if the initialization was unsuccessful, likely because a
     /// global subscriber was already installed by another call to `try_init`.
     pub fn init(self) {
         self.try_init()
-            .expect("Unable to install global subscriber")
+            .expect("Unable to install global subscriber");
     }
 }
 
 impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// This does nothing. It exists only to mimic `tracing-subscriber`'s API.
     #[deprecated(note = "Calling `json()` does nothing.")]
+    #[must_use]
     pub fn json(self) -> Self {
         self
     }
 
     /// This does nothing. It exists only to mimic `tracing-subscriber`'s API.
     #[deprecated(note = "Calling `with_ansi()` does nothing.")]
+    #[must_use]
     pub fn with_ansi(self, _ansi: bool) -> Self {
         self
     }
@@ -357,6 +359,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// This can help identify problems with serialization and with debugging issues.
     ///
     /// Defaults to false.
+    #[must_use]
     pub fn log_internal_errors(self, log_internal_errors: bool) -> Self {
         Self {
             log_internal_errors,
@@ -405,6 +408,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     }
 
     /// Sets the JSON subscriber being built to flatten event metadata.
+    #[must_use]
     pub fn flatten_event(self, flatten_event: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             flatten_event,
@@ -414,6 +418,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
 
     /// Sets whether or not the formatter will include the current span in
     /// formatted events.
+    #[must_use]
     pub fn with_current_span(self, display_current_span: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_current_span,
@@ -423,6 +428,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
 
     /// Sets whether or not the formatter will include a list (from root to leaf)
     /// of all currently entered spans in formatted events.
+    #[must_use]
     pub fn with_span_list(self, display_span_list: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_span_list,
@@ -537,6 +543,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     // }
 
     /// Sets whether or not an event's target is displayed.
+    #[must_use]
     pub fn with_target(self, display_target: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_target,
@@ -548,6 +555,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// displayed.
     ///
     /// [file]: tracing_core::Metadata::file
+    #[must_use]
     pub fn with_file(self, display_filename: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_filename,
@@ -559,6 +567,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// displayed.
     ///
     /// [line]: tracing_core::Metadata::line
+    #[must_use]
     pub fn with_line_number(self, display_line_number: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_line_number,
@@ -567,6 +576,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     }
 
     /// Sets whether or not an event's level is displayed.
+    #[must_use]
     pub fn with_level(self, display_level: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_level,
@@ -578,6 +588,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// when formatting events.
     ///
     /// [name]: std::thread#naming-threads
+    #[must_use]
     pub fn with_thread_names(self, display_thread_name: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_thread_name,
@@ -589,6 +600,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// when formatting events.
     ///
     /// [thread ID]: std::thread::ThreadId
+    #[must_use]
     pub fn with_thread_ids(self, display_thread_id: bool) -> SubscriberBuilder<W, T, F> {
         SubscriberBuilder {
             display_thread_id,
@@ -602,6 +614,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// [OpenTelemetry]: https://opentelemetry.io
     #[cfg(feature = "opentelemetry")]
     #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+    #[must_use]
     pub fn with_opentelemetry_ids(self, display_opentelemetry_ids: bool) -> Self {
         SubscriberBuilder {
             display_opentelemetry_ids,
@@ -1053,8 +1066,7 @@ mod tests {
             Ok(v) => v,
             Err(e) => {
                 panic!(
-                    "assertion failed: JSON shouldn't be malformed\n  error: {}\n  json: {}",
-                    e, json
+                    "assertion failed: JSON shouldn't be malformed\n  error: {e}\n  json: {json}"
                 )
             },
         }
@@ -1127,7 +1139,7 @@ mod tests {
     fn is_lookup_span() {
         fn assert_lookup_span<T: for<'a> LookupSpan<'a>>(_: T) {}
         let subscriber = SubscriberBuilder::default().finish();
-        assert_lookup_span(subscriber)
+        assert_lookup_span(subscriber);
     }
 
     #[test]

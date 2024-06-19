@@ -39,6 +39,7 @@ impl<'a, 'b, 'c, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, 
     }
 
     #[cfg(feature = "tracing-log")]
+    #[allow(dead_code)]
     pub fn normalized_metadata(&self) -> Option<Metadata<'_>> {
         self.event.normalized_metadata()
     }
@@ -68,7 +69,7 @@ where
 {
     pub(crate) fn format_event(
         &self,
-        ctx: Context<'_, S>,
+        context: &Context<'_, S>,
         writer: &mut String,
         event: &Event<'_>,
     ) -> fmt::Result {
@@ -79,12 +80,12 @@ where
 
             let mut serializer = serializer.serialize_map(None)?;
 
-            let current_span = ctx.event_span(event);
+            let span = context.event_span(event);
 
             let event_ref = EventRef {
-                context: &ctx,
+                context,
                 event,
-                span: current_span,
+                span,
             };
 
             let mut serialized_anything = false;
@@ -116,14 +117,14 @@ where
                                     }
                                     serialized_anything = true;
                                     serialized_anything_serde = true;
-                                    serializer.serialize_entry(key, &value.value)?
+                                    serializer.serialize_entry(key, &value.value)?;
                                 }
                             },
                             MaybeCached::Cached(Cached::Raw(raw)) => {
                                 debug_assert!(
                                     serde_json::to_value(&*raw).is_ok(),
-                                    "[json-subscriber] provided cached value is not valid json: {}",
-                                    raw,
+                                    "[json-subscriber] provided cached value is not valid json: \
+                                     {raw}",
                                 );
                                 let mut writer = writer.inner_mut();
                                 if serialized_anything {
@@ -149,8 +150,7 @@ where
                                     debug_assert!(
                                         serde_json::to_value(&*raw).is_ok(),
                                         "[json-subscriber] provided cached value in array is not \
-                                         valid json: {}",
-                                        raw,
+                                         valid json: {raw}",
                                     );
                                     if !first {
                                         writer.push(',');
@@ -202,8 +202,7 @@ where
 
         debug_assert!(
             serde_json::to_value(&*writer).is_ok(),
-            "[json-subscriber] serialized line is not valid json: {}",
-            writer,
+            "[json-subscriber] serialized line is not valid json: {writer}",
         );
 
         Ok(())
