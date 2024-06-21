@@ -39,3 +39,8 @@ impl serde::Serialize for JsonFields {
         serializer.end()
     }
 }
+
+pub(crate) struct FlattenedSpanFields {
+    pub(crate) versions: Vec<usize>,
+    pub(crate) serialized: Arc<str>,
+}

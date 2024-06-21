@@ -21,7 +21,7 @@ use event::EventRef;
 
 use crate::{
     cached::Cached,
-    fields::{JsonFields, JsonFieldsInner},
+    fields::{FlattenedSpanFields, JsonFields, JsonFieldsInner},
     visitor::JsonVisitor,
 };
 
@@ -665,29 +665,47 @@ where
     pub(crate) fn flatten_span_list(&mut self, key: impl Into<String>) -> &mut Self {
         self.schema.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicFromSpan(Box::new(|span| {
-                let fields =
-                    span.scope()
-                        .from_root()
-                        .fold(BTreeMap::new(), |mut accumulator, span| {
-                            let extensions = span.extensions();
-                            let Some(fields) = extensions.get::<JsonFields>() else {
-                                return accumulator;
-                            };
-                            accumulator.extend(
-                                fields
-                                    .inner
-                                    .fields
-                                    .iter()
-                                    .map(|(key, value)| (*key, value.clone())),
+            JsonValue::DynamicCachedFromSpan(Box::new(|span| {
+                {
+                    // Drop the extensions
+                    let extensions = span.extensions();
+                    if let Some(cached) = extensions.get::<FlattenedSpanFields>() {
+                        let reload_needed =
+                            span.scope().from_root().zip(cached.versions.iter()).any(
+                                |(span, expected_version)| {
+                                    let extensions = span.extensions();
+                                    let Some(fields) = extensions.get::<JsonFields>() else {
+                                        return true;
+                                    };
+                                    fields.inner.version != *expected_version
+                                },
                             );
-                            accumulator
-                        });
 
-                Some(DynamicJsonValue {
-                    flatten: false,
-                    value: serde_json::to_value(fields).ok()?,
-                })
+                        if !reload_needed {
+                            return Some(Cached::Raw(cached.serialized.clone()));
+                        }
+                    }
+                }
+
+                let mut all_fields = BTreeMap::new();
+                let mut versions = Vec::new();
+                for span in span.scope().from_root() {
+                    let extensions = span.extensions();
+                    let fields = extensions.get::<JsonFields>().unwrap();
+                    all_fields.extend(fields.inner.fields.clone());
+                    versions.push(fields.inner.version);
+                }
+
+                let serialized = Arc::<str>::from(serde_json::to_string(&all_fields).unwrap());
+
+                let span_fields = FlattenedSpanFields {
+                    versions,
+                    serialized: serialized.clone(),
+                };
+
+                span.extensions_mut().replace(span_fields);
+
+                Some(Cached::Raw(serialized))
             })),
         );
         self
@@ -873,22 +891,34 @@ mod tests {
     use super::JsonLayer;
     use crate::tests::MockMakeWriter;
 
-    fn test_json<W, T>(
-        expected: &serde_json::Value,
+    fn test_single_line<W, T>(
+        expected: serde_json::Value,
         layer: JsonLayer<Registry, W>,
         producer: impl FnOnce() -> T,
     ) {
-        let actual = produce_log_line(layer, producer);
-        assert_eq!(
-            expected,
-            &serde_json::from_str::<serde_json::Value>(&actual).unwrap(),
-        );
+        test_lines(vec![expected], layer, producer);
     }
 
-    fn produce_log_line<W, T>(
+    fn test_lines<W, T>(
+        expected: Vec<serde_json::Value>,
         layer: JsonLayer<Registry, W>,
         producer: impl FnOnce() -> T,
-    ) -> String {
+    ) {
+        let mut actual = produce_log_lines(layer, producer);
+        assert_eq!(Some(String::new()), actual.pop());
+        assert_eq!(expected.len(), actual.len());
+        for (actual, expected) in actual.into_iter().zip(expected) {
+            assert_eq!(
+                expected,
+                serde_json::from_str::<serde_json::Value>(&actual).unwrap(),
+            );
+        }
+    }
+
+    fn produce_log_lines<W, T>(
+        layer: JsonLayer<Registry, W>,
+        producer: impl FnOnce() -> T,
+    ) -> Vec<String> {
         let make_writer = MockMakeWriter::default();
         let collector = layer
             .with_writer(make_writer.clone())
@@ -897,7 +927,11 @@ mod tests {
         with_default(collector, producer);
 
         let buf = make_writer.buf();
-        dbg!(std::str::from_utf8(&buf[..]).unwrap()).to_owned()
+        std::str::from_utf8(&buf[..])
+            .unwrap()
+            .split('\n')
+            .map(ToOwned::to_owned)
+            .collect()
     }
 
     #[test]
@@ -918,8 +952,127 @@ mod tests {
             "one": 1,
         });
 
-        test_json(&expected, layer, || {
+        test_single_line(expected, layer, || {
             tracing::info!(does = "not matter", "whatever");
+        });
+    }
+
+    #[test]
+    fn flattened_spans() {
+        let mut layer = JsonLayer::stdout();
+        layer.flatten_span_list("spans");
+
+        let expected = vec![
+            json!({}),
+            json!({
+                "spans": {
+                    "name": "alpha",
+                    "abacus": 1,
+                    "andromeda": 2,
+                    "agave": 3,
+                }
+            }),
+            json!({
+                "spans": {
+                    "name": "alpha",
+                    "abacus": 1,
+                    "andromeda": "galaxy",
+                    "agave": 3,
+                }
+            }),
+            json!({
+                "spans": {
+                    "name": "beta",
+                    "abacus": 1,
+                    "andromeda": "galaxy",
+                    "agave": 3,
+                    "braille": 1,
+                    "bison": 2,
+                    "basque": 3,
+                }
+            }),
+            json!({
+                "spans": {
+                    "name": "gama",
+                    "abacus": 1,
+                    "andromeda": "galaxy",
+                    "agave": 3,
+                    "braille": 1,
+                    "bison": 2,
+                    "basque": 3,
+                    "centurion": 1,
+                    "corona": 2,
+                    "chinchilla": 3,
+                }
+            }),
+            json!({
+                "spans": {
+                    "name": "gama",
+                    "abacus": 1,
+                    "andromeda": "galaxy",
+                    "agave": 3,
+                    "braille": 1,
+                    "bison": "animal",
+                    "basque": 3,
+                    "centurion": 1,
+                    "corona": 2,
+                    "chinchilla": 3,
+                }
+            }),
+            json!({
+                "spans": {
+                    "name": "gama",
+                    "abacus": 1,
+                    "andromeda": "galaxy",
+                    "agave": 3,
+                    "braille": 1,
+                    "bison": "animal",
+                    "basque": 3,
+                    "centurion": 1,
+                    "corona": 2,
+                    "chinchilla": 3,
+                }
+            }),
+            json!({
+                "spans": {
+                    "name": "alpha",
+                    "abacus": 1,
+                    "andromeda": "galaxy",
+                    "agave": 3,
+                }
+            }),
+            json!({}),
+        ];
+
+        test_lines(expected, layer, || {
+            tracing::info!(ignored = 1, "something");
+
+            let alpha = tracing::info_span!("alpha", abacus = 1, andromeda = 2, agave = 3);
+            let alpha_guard = alpha.enter();
+            tracing::info!(ignored = 1, "something");
+
+            alpha.record("andromeda", "galaxy");
+            tracing::info!(ignored = 1, "something");
+
+            let beta = tracing::info_span!("beta", braille = 1, bison = 2, basque = 3);
+            let beta_guard = beta.enter();
+            tracing::info!(ignored = 1, "something");
+
+            let gama = tracing::info_span!("gama", centurion = 1, corona = 2, chinchilla = 3);
+            let gama_guard = gama.enter();
+            tracing::info!(ignored = 1, "something");
+
+            beta.record("bison", "animal");
+            tracing::info!(ignored = 1, "something");
+
+            drop(beta_guard);
+            tracing::info!(ignored = 1, "something");
+
+            drop(gama_guard);
+            tracing::info!(ignored = 1, "something");
+
+            drop(alpha_guard);
+            tracing::info!(ignored = 1, "something");
         });
     }
 }
