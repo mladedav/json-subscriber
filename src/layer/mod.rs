@@ -149,8 +149,6 @@ where
         };
 
         values.record(&mut JsonVisitor::new(&mut fields.inner));
-        let serialized = serde_json::to_string(&fields).unwrap();
-        fields.serialized = Arc::from(serialized.as_str());
     }
 
     fn on_enter(&self, _id: &Id, _ctx: Context<'_, S>) {}
@@ -692,7 +690,7 @@ where
             JsonValue::DynamicCachedFromSpan(Box::new(move |span| {
                 span.extensions()
                     .get::<JsonFields>()
-                    .map(|fields| Cached::Raw(fields.serialized.clone()))
+                    .map(|fields| Cached::Raw(fields.serialized()))
             })),
         );
         self
@@ -710,7 +708,7 @@ where
                         .filter_map(|span| {
                             span.extensions()
                                 .get::<JsonFields>()
-                                .map(|fields| fields.serialized.clone())
+                                .map(JsonFields::serialized)
                         })
                         .collect::<Vec<_>>(),
                 ))

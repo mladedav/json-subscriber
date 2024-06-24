@@ -43,6 +43,7 @@ tracing-opentelemetry = { version = "0.24.0", default-features = false, optional
 opentelemetry = { version = "0.23.0", default-features = false, optional = true }
 # OpenTelemetry depends on this but with a version such that minimal versions are broken. We do not use this.
 async-trait = { version = "0.1.9", default-features = false, optional = true }
+arc-swap = "1.7.1"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false }

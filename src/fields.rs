@@ -1,4 +1,10 @@
-use std::{collections::HashMap, sync::{atomic::AtomicUsize, Arc}};
+use std::{
+    collections::HashMap,
+    ops::Deref,
+    sync::{atomic::AtomicUsize, Arc},
+};
+
+use arc_swap::ArcSwapOption;
 
 #[derive(Debug, Default)]
 pub(crate) struct JsonFieldsInner {
@@ -15,12 +21,9 @@ impl JsonFieldsInner {
     }
 
     pub(crate) fn finish(self) -> JsonFields {
-        let serialized = serde_json::to_string(&self.fields).unwrap();
-        let serialized = Arc::from(serialized.as_str());
-
         JsonFields {
             inner: self,
-            serialized,
+            serialized: ArcSwapOption::new(None),
         }
     }
 }
@@ -28,7 +31,25 @@ impl JsonFieldsInner {
 #[derive(Debug)]
 pub(crate) struct JsonFields {
     pub(crate) inner: JsonFieldsInner,
-    pub(crate) serialized: Arc<str>,
+    serialized: ArcSwapOption<Arc<str>>,
+}
+
+impl JsonFields {
+    pub(crate) fn serialized(&self) -> Arc<str> {
+        let maybe_serialized = self.serialized.load();
+        if let Some(serialized) = &*maybe_serialized {
+            serialized.deref().clone()
+        } else {
+            let serialized =
+                Arc::<str>::from(serde_json::to_string(&self.inner.fields).unwrap().as_str());
+
+            self.serialized
+                .compare_and_swap(&Option::<Arc<_>>::None, Some(Arc::new(serialized.clone())))
+                .as_deref()
+                .map(Arc::clone)
+                .unwrap_or(serialized)
+        }
+    }
 }
 
 impl serde::Serialize for JsonFields {
