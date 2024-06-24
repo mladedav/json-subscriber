@@ -30,6 +30,17 @@ impl MultithreadedBench {
         })
     }
 
+    pub(super) fn thread_n(
+        &self,
+        repeat: usize,
+        f: impl FnOnce() + Clone + Send + 'static,
+    ) -> &Self {
+        for _ in 0..repeat {
+            self.thread(f.clone());
+        }
+        self
+    }
+
     pub(super) fn thread_with_setup(&self, f: impl FnOnce(&Barrier) + Send + 'static) -> &Self {
         let this = self.clone();
         thread::spawn(move || {
@@ -39,6 +50,17 @@ impl MultithreadedBench {
                 this.end.wait();
             })
         });
+        self
+    }
+
+    pub(super) fn thread_with_setup_n(
+        &self,
+        repeat: usize,
+        f: impl FnOnce(&Barrier) + Clone + Send + 'static,
+    ) -> &Self {
+        for _ in 0..repeat {
+            self.thread_with_setup(f.clone());
+        }
         self
     }
 

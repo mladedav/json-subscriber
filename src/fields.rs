@@ -1,12 +1,19 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::HashMap, sync::{atomic::AtomicUsize, Arc}};
 
 #[derive(Debug, Default)]
 pub(crate) struct JsonFieldsInner {
-    pub(crate) fields: BTreeMap<&'static str, serde_json::Value>,
-    pub(crate) version: usize,
+    pub(crate) fields: HashMap<&'static str, serde_json::Value>,
+    pub(crate) version: Arc<AtomicUsize>,
 }
 
 impl JsonFieldsInner {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            fields: HashMap::with_capacity(capacity),
+            version: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
     pub(crate) fn finish(self) -> JsonFields {
         let serialized = serde_json::to_string(&self.fields).unwrap();
         let serialized = Arc::from(serialized.as_str());
@@ -41,6 +48,7 @@ impl serde::Serialize for JsonFields {
 }
 
 pub(crate) struct FlattenedSpanFields {
-    pub(crate) versions: Vec<usize>,
+    pub(crate) current_versions: Vec<Arc<AtomicUsize>>,
+    pub(crate) serialized_versions: Vec<usize>,
     pub(crate) serialized: Arc<str>,
 }

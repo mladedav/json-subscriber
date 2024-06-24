@@ -2,13 +2,13 @@
 
 You can run this the suite using `tracing-subscriber` with:
 
-```
+```bash
 RUSTFLAGS='--cfg bench_tracing_baseline' cargo bench -- --save-baseline tracing-subscriber
 ```
 
 And then run the benchmark again using this library:
 
-```
+```bash
 cargo bench -- --baseline tracing-subscriber
 ```
 
@@ -254,4 +254,18 @@ Found 10 outliers among 100 measurements (10.00%)
   3 (3.00%) low severe
   3 (3.00%) low mild
   4 (4.00%) high mild
+```
+
+## Comparison with `tracing-bunyan-formatter`
+
+You can run this the suite using `tracing-bunyan-formatter` with:
+
+```
+RUSTFLAGS='--cfg bench_bunyan_baseline' cargo bench --bench bunyan -- --save-baseline bunyan
+```
+
+And then run the benchmark again using this library:
+
+```bash
+cargo bench --bench bunyan -- --baseline bunyan
 ```

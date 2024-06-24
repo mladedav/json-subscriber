@@ -532,7 +532,7 @@ mod tests {
         with_default(collector, producer);
 
         let buf = make_writer.buf();
-        dbg!(std::str::from_utf8(&buf[..]).unwrap()).to_owned()
+        std::str::from_utf8(&buf[..]).unwrap().to_owned()
     }
 
     #[test]

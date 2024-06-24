@@ -14,12 +14,17 @@ repository = "https://github.com/mladedav/json-subscriber"
 default = []
 tracing-log = ["tracing-subscriber/tracing-log", "dep:tracing-log"]
 env-filter = ["tracing-subscriber/env-filter"]
-opentelemetry = ["dep:tracing-opentelemetry", "dep:opentelemetry", "dep:async-trait"]
+opentelemetry = [
+    "dep:tracing-opentelemetry",
+    "dep:opentelemetry",
+    "dep:async-trait",
+]
 
 # Required for intra-doc links to resolve correctly
 __private_docs = ["tracing-subscriber/time", "tracing-subscriber/local-time"]
 
 [dependencies]
+gethostname = "0.2"
 serde = "1.0.202"
 serde_json = "1.0.117"
 
@@ -49,6 +54,9 @@ tracing-subscriber = { version = "0.3", features = ["json"] }
 opentelemetry_sdk = { version = "0.23.0", default-features = false }
 opentelemetry-stdout = "0.4"
 
+# Benchmark
+tracing-bunyan-formatter = "0.3.9"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -60,5 +68,12 @@ bench = false
 name = "tracing_subscriber"
 harness = false
 
+[[bench]]
+name = "bunyan"
+harness = false
+
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(bench_tracing_baseline)'] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(bench_tracing_baseline)',
+    'cfg(bench_bunyan_baseline)',
+] }

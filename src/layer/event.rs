@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, ops::Deref};
+use std::{borrow::Cow, cell::OnceCell, collections::HashMap, fmt, ops::Deref};
 
 use serde::{ser::SerializeMap, Serializer};
 use tracing::{Event, Metadata, Subscriber};
@@ -12,8 +12,10 @@ use tracing_subscriber::{
 use crate::{
     cached::Cached,
     cursor::Cursor,
-    layer::{DynamicJsonValue, JsonLayer, JsonValue, SchemaKey},
+    fields::JsonFieldsInner,
+    layer::{DynamicJsonValue, DynamicJsonValueInner, JsonLayer, JsonValue, SchemaKey},
     serde::JsonSubscriberFormatter,
+    visitor::JsonVisitor,
 };
 
 /// The same thing as [`SpanRef`] but for events.
@@ -21,6 +23,7 @@ pub struct EventRef<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> {
     context: &'a Context<'b, R>,
     event: &'a Event<'b>,
     span: Option<SpanRef<'c, R>>,
+    fields: OnceCell<HashMap<&'static str, serde_json::Value>>,
 }
 
 impl<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> Deref for EventRef<'a, 'b, 'c, R> {
@@ -52,6 +55,14 @@ impl<'a, 'b, 'c, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, 
     /// span is the root of its trace tree.
     pub fn parent_span(&self) -> Option<&SpanRef<'c, R>> {
         self.span.as_ref()
+    }
+
+    pub fn fields(&self) -> &HashMap<&'static str, serde_json::Value> {
+        self.fields.get_or_init(|| {
+            let mut fields = JsonFieldsInner::with_capacity(self.event.fields().count());
+            self.event.record(&mut JsonVisitor::new(&mut fields));
+            fields.fields
+        })
     }
 
     pub(super) fn event(&self) -> &Event<'_> {
@@ -86,6 +97,7 @@ where
                 context,
                 event,
                 span,
+                fields: OnceCell::new(),
             };
 
             let mut serialized_anything = false;
@@ -100,16 +112,34 @@ where
                         match value {
                             MaybeCached::Serde(value) => {
                                 if value.flatten {
-                                    let map = value.value.as_object().unwrap();
-                                    if !map.is_empty() {
-                                        if serialized_anything && !serialized_anything_serde {
-                                            writer.inner_mut().push(',');
-                                        }
-                                        serialized_anything = true;
-                                        serialized_anything_serde = true;
-                                        for (key, value) in map {
-                                            serializer.serialize_entry(key, value)?;
-                                        }
+                                    match &value.value {
+                                        DynamicJsonValueInner::Serde(value) => {
+                                            let map = value.as_object().unwrap();
+                                            if !map.is_empty() {
+                                                if serialized_anything && !serialized_anything_serde
+                                                {
+                                                    writer.inner_mut().push(',');
+                                                }
+                                                serialized_anything = true;
+                                                serialized_anything_serde = true;
+                                                for (key, value) in map {
+                                                    serializer.serialize_entry(key, value)?;
+                                                }
+                                            }
+                                        },
+                                        DynamicJsonValueInner::FieldMap(map) => {
+                                            if !map.is_empty() {
+                                                if serialized_anything && !serialized_anything_serde
+                                                {
+                                                    writer.inner_mut().push(',');
+                                                }
+                                                serialized_anything = true;
+                                                serialized_anything_serde = true;
+                                                for (key, value) in map {
+                                                    serializer.serialize_entry(key, value)?;
+                                                }
+                                            }
+                                        },
                                     }
                                 } else {
                                     if serialized_anything && !serialized_anything_serde {
@@ -117,7 +147,14 @@ where
                                     }
                                     serialized_anything = true;
                                     serialized_anything_serde = true;
-                                    serializer.serialize_entry(key, &value.value)?;
+                                    match &value.value {
+                                        DynamicJsonValueInner::Serde(map) => {
+                                            serializer.serialize_entry(key, map)?;
+                                        },
+                                        DynamicJsonValueInner::FieldMap(map) => {
+                                            serializer.serialize_entry(key, map)?;
+                                        },
+                                    }
                                 }
                             },
                             MaybeCached::Cached(Cached::Raw(raw)) => {

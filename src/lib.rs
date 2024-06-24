@@ -103,6 +103,7 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::too_many_lines)]
 
+pub mod bunyan;
 mod cached;
 mod cursor;
 mod fields;
@@ -110,6 +111,7 @@ pub mod fmt;
 mod layer;
 mod serde;
 mod visitor;
+mod write_adaptor;
 
 #[cfg(test)]
 mod tests;

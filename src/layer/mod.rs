@@ -1,4 +1,11 @@
-use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fmt, io, sync::Arc};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+    fmt,
+    io,
+    sync::{atomic::Ordering, Arc},
+};
 
 use serde::Serialize;
 use tracing_core::{
@@ -6,7 +13,6 @@ use tracing_core::{
     Event,
     Subscriber,
 };
-use tracing_serde::fields::AsMap;
 use tracing_subscriber::{
     fmt::{format::Writer, time::FormatTime, MakeWriter, TestWriter},
     layer::Context,
@@ -23,6 +29,7 @@ use crate::{
     cached::Cached,
     fields::{FlattenedSpanFields, JsonFields, JsonFieldsInner},
     visitor::JsonVisitor,
+    write_adaptor::WriteAdaptor,
 };
 
 /// Layer that implements logging JSON to a configured output. This is a lower-level API that may
@@ -62,7 +69,19 @@ impl From<String> for SchemaKey {
 #[derive(Debug, Clone)]
 pub(crate) struct DynamicJsonValue {
     pub(crate) flatten: bool,
-    pub(crate) value: serde_json::Value,
+    pub(crate) value: DynamicJsonValueInner,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum DynamicJsonValueInner {
+    Serde(serde_json::Value),
+    FieldMap(HashMap<&'static str, serde_json::Value>),
+}
+
+impl From<serde_json::Value> for DynamicJsonValueInner {
+    fn from(value: serde_json::Value) -> Self {
+        Self::Serde(value)
+    }
 }
 
 #[allow(clippy::type_complexity)]
@@ -97,6 +116,7 @@ where
             let mut fields = JsonFieldsInner::default();
             let mut visitor = JsonVisitor::new(&mut fields);
             attrs.record(&mut visitor);
+            drop(visitor);
             fields
                 .fields
                 .insert("name", serde_json::Value::from(attrs.metadata().name()));
@@ -367,7 +387,7 @@ where
             SchemaKey::from(key.into()),
             JsonValue::Serde(DynamicJsonValue {
                 flatten: false,
-                value,
+                value: DynamicJsonValueInner::Serde(value),
             }),
         );
     }
@@ -403,9 +423,37 @@ where
             JsonValue::DynamicFromEvent(Box::new(move |event| {
                 Some(DynamicJsonValue {
                     flatten: false,
-                    value: serde_json::to_value(mapper(event.event(), event.context())).ok()?,
+                    value: DynamicJsonValueInner::Serde(
+                        serde_json::to_value(mapper(event.event(), event.context())).ok()?,
+                    ),
                 })
             })),
+        );
+    }
+
+    pub fn add_dynamic_field_next_gen<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
+    where
+        for<'a> Fun: Fn(&'a EventRef<'_, '_, '_, S>) -> Option<Res> + Send + Sync + 'a,
+        Res: serde::Serialize,
+    {
+        self.schema.insert(
+            SchemaKey::from(key.into()),
+            JsonValue::DynamicFromEvent(Box::new(move |event| {
+                Some(DynamicJsonValue {
+                    flatten: false,
+                    value: DynamicJsonValueInner::Serde(serde_json::to_value(mapper(event)).ok()?),
+                })
+            })),
+        );
+    }
+
+    pub(crate) fn add_raw_dynamic_field<Fun>(&mut self, key: impl Into<String>, mapper: Fun)
+    where
+        for<'a> Fun: Fn(&'a EventRef<S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync + 'a,
+    {
+        self.schema.insert(
+            SchemaKey::from(key.into()),
+            JsonValue::DynamicRawFromEvent(Box::new(mapper)),
         );
     }
 
@@ -419,7 +467,7 @@ where
             JsonValue::DynamicFromSpan(Box::new(move |span| {
                 Some(DynamicJsonValue {
                     flatten: false,
-                    value: serde_json::to_value(mapper(span)).ok()?,
+                    value: DynamicJsonValueInner::Serde(serde_json::to_value(mapper(span)).ok()?),
                 })
             })),
         );
@@ -531,7 +579,9 @@ where
                 let extension = extensions.get::<Ext>()?;
                 Some(DynamicJsonValue {
                     flatten: false,
-                    value: serde_json::to_value(mapper(extension)).ok()?,
+                    value: DynamicJsonValueInner::Serde(
+                        serde_json::to_value(mapper(extension)).ok()?,
+                    ),
                 })
             })),
         );
@@ -597,7 +647,9 @@ where
                 let extension = extensions.get::<Ext>()?;
                 Some(DynamicJsonValue {
                     flatten: false,
-                    value: serde_json::to_value(mapper(extension)).ok()?,
+                    value: DynamicJsonValueInner::Serde(
+                        serde_json::to_value(mapper(extension)).ok()?,
+                    ),
                 })
             })),
         );
@@ -610,15 +662,25 @@ where
     /// clash with other defined fields. If they clash, invalid JSON with multiple fields with the
     /// same key may be generated.
     pub fn with_event(&mut self, key: impl Into<String>, flatten: bool) -> &mut Self {
-        self.schema.insert(
-            SchemaKey::from(key.into()),
-            JsonValue::DynamicFromEvent(Box::new(move |event| {
-                Some(DynamicJsonValue {
-                    flatten,
-                    value: serde_json::to_value(event.field_map()).ok()?,
-                })
-            })),
-        );
+        if flatten {
+            self.schema.insert(
+                SchemaKey::from(key.into()),
+                JsonValue::DynamicFromEvent(Box::new(move |event| {
+                    Some(DynamicJsonValue {
+                        flatten: true,
+                        value: DynamicJsonValueInner::FieldMap(event.fields().clone()),
+                    })
+                })),
+            );
+        } else {
+            self.schema.insert(
+                SchemaKey::from(key.into()),
+                JsonValue::DynamicRawFromEvent(Box::new(move |event, writer| {
+                    serde_json::to_writer(WriteAdaptor::new(writer), event.fields()).unwrap();
+                    Ok(())
+                })),
+            );
+        }
         self
     }
 
@@ -670,16 +732,13 @@ where
                     // Drop the extensions
                     let extensions = span.extensions();
                     if let Some(cached) = extensions.get::<FlattenedSpanFields>() {
-                        let reload_needed =
-                            span.scope().from_root().zip(cached.versions.iter()).any(
-                                |(span, expected_version)| {
-                                    let extensions = span.extensions();
-                                    let Some(fields) = extensions.get::<JsonFields>() else {
-                                        return true;
-                                    };
-                                    fields.inner.version != *expected_version
-                                },
-                            );
+                        let reload_needed = cached
+                            .serialized_versions
+                            .iter()
+                            .zip(&cached.current_versions)
+                            .any(|(serialized, current)| {
+                                *serialized != current.load(Ordering::Relaxed)
+                            });
 
                         if !reload_needed {
                             return Some(Cached::Raw(cached.serialized.clone()));
@@ -688,18 +747,21 @@ where
                 }
 
                 let mut all_fields = BTreeMap::new();
-                let mut versions = Vec::new();
+                let mut current_versions = Vec::new();
+                let mut serialized_versions = Vec::new();
                 for span in span.scope().from_root() {
                     let extensions = span.extensions();
                     let fields = extensions.get::<JsonFields>().unwrap();
+                    serialized_versions.push(fields.inner.version.load(Ordering::Acquire));
                     all_fields.extend(fields.inner.fields.clone());
-                    versions.push(fields.inner.version);
+                    current_versions.push(fields.inner.version.clone());
                 }
 
                 let serialized = Arc::<str>::from(serde_json::to_string(&all_fields).unwrap());
 
                 let span_fields = FlattenedSpanFields {
-                    versions,
+                    current_versions,
+                    serialized_versions,
                     serialized: serialized.clone(),
                 };
 
@@ -730,7 +792,7 @@ where
 
                 Some(DynamicJsonValue {
                     flatten: false,
-                    value: timestamp.into(),
+                    value: DynamicJsonValueInner::Serde(timestamp.into()),
                 })
             })),
         );

@@ -171,7 +171,7 @@ pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
             Ok(var) => {
                 Targets::from_str(&var)
                     .map_err(|e| {
-                        eprintln!("Ignoring `RUST_LOG={:?}`: {}", var, e);
+                        eprintln!("Ignoring `RUST_LOG={var:?}`: {e}");
                     })
                     .unwrap_or_default()
             },
@@ -179,7 +179,7 @@ pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
                 Targets::new().with_default(tracing_core::LevelFilter::INFO)
             },
             Err(e) => {
-                eprintln!("Ignoring `RUST_LOG`: {}", e);
+                eprintln!("Ignoring `RUST_LOG`: {e}");
                 Targets::new().with_default(tracing_core::LevelFilter::INFO)
             },
         };
