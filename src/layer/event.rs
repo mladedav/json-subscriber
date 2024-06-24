@@ -157,9 +157,14 @@ where
                                     }
                                 }
                             },
-                            MaybeCached::Cached(Cached::Raw(raw)) => {
+                            MaybeCached::Cached(cached @ (Cached::Raw(_) | Cached::RawString(_))) => {
+                                let raw = match &cached {
+                                    Cached::Raw(str) => str.as_ref(),
+                                    Cached::RawString(string) => string.as_str(),
+                                    Cached::Array(_) => unreachable!(),
+                                };
                                 debug_assert!(
-                                    serde_json::to_value(&*raw).is_ok(),
+                                    serde_json::to_value(raw).is_ok(),
                                     "[json-subscriber] provided cached value is not valid json: \
                                      {raw}",
                                 );
@@ -171,7 +176,7 @@ where
                                 writer.push('"');
                                 writer.push_str(key);
                                 writer.push_str("\":");
-                                writer.push_str(&raw);
+                                writer.push_str(raw);
                             },
                             MaybeCached::Cached(Cached::Array(arr)) => {
                                 let mut writer = writer.inner_mut();

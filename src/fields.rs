@@ -31,21 +31,20 @@ impl JsonFieldsInner {
 #[derive(Debug)]
 pub(crate) struct JsonFields {
     pub(crate) inner: JsonFieldsInner,
-    serialized: ArcSwapOption<Arc<str>>,
+    serialized: ArcSwapOption<String>,
 }
 
 impl JsonFields {
-    pub(crate) fn serialized(&self) -> Arc<str> {
+    pub(crate) fn serialized(&self) -> Arc<String> {
         let maybe_serialized = self.serialized.load();
         if let Some(serialized) = &*maybe_serialized {
-            serialized.deref().clone()
+            serialized.clone()
         } else {
-            let serialized =
-                Arc::<str>::from(serde_json::to_string(&self.inner.fields).unwrap().as_str());
+            let serialized = Arc::new(serde_json::to_string(&self.inner.fields).unwrap());
 
             self.serialized
-                .compare_and_swap(&Option::<Arc<_>>::None, Some(Arc::new(serialized.clone())))
-                .as_deref()
+                .compare_and_swap(&Option::<Arc<_>>::None, Some(serialized.clone()))
+                .as_ref()
                 .map(Arc::clone)
                 .unwrap_or(serialized)
         }

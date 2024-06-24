@@ -690,7 +690,7 @@ where
             JsonValue::DynamicCachedFromSpan(Box::new(move |span| {
                 span.extensions()
                     .get::<JsonFields>()
-                    .map(|fields| Cached::Raw(fields.serialized()))
+                    .map(|fields| Cached::RawString(fields.serialized()))
             })),
         );
         self
