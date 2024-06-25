@@ -1,3 +1,4 @@
+use arc_swap::access::Access;
 use serde_json::Value;
 use tracing::{Level, Subscriber};
 use tracing_subscriber::{
@@ -9,7 +10,7 @@ use tracing_subscriber::{
     registry::LookupSpan,
 };
 
-use crate::{fields::JsonFieldsInner, visitor::JsonVisitor, JsonLayer};
+use crate::{visitor::JsonVisitor, JsonLayer};
 
 const BUNYAN_VERSION: &str = "v";
 const LEVEL: &str = "level";
@@ -44,13 +45,15 @@ where
     });
     layer.add_raw_dynamic_field(MESSAGE, |event, write| {
         write.write_char('\"')?;
-        write.write_str(
-            event
-                .fields()
-                .get("message")
-                .and_then(|message| message.as_str())
-                .unwrap_or(event.metadata().target()),
-        )?;
+        match event
+            .fields()
+            .fields()
+            .get("message")
+            .and_then(|field| field.load_full())
+        {
+            Some(message) => write.write_str(message.as_str())?,
+            None => write.write_str(event.metadata().target())?,
+        }
         write.write_char('\"')
     });
     layer.with_file("file");

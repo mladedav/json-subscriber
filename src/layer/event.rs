@@ -1,6 +1,7 @@
 use std::{borrow::Cow, cell::OnceCell, collections::HashMap, fmt, ops::Deref};
 
 use serde::{ser::SerializeMap, Serializer};
+use serde_json::ser::CompactFormatter;
 use tracing::{Event, Metadata, Subscriber};
 #[cfg(feature = "tracing-log")]
 use tracing_log::NormalizeEvent;
@@ -12,9 +13,9 @@ use tracing_subscriber::{
 use crate::{
     cached::Cached,
     cursor::Cursor,
-    fields::JsonFieldsInner,
+    fields::JsonFields,
     layer::{DynamicJsonValue, DynamicJsonValueInner, JsonLayer, JsonValue, SchemaKey},
-    serde::JsonSubscriberFormatter,
+    serde::JsonSubscriberFormatterInsideObject,
     visitor::JsonVisitor,
 };
 
@@ -23,7 +24,7 @@ pub struct EventRef<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> {
     context: &'a Context<'b, R>,
     event: &'a Event<'b>,
     span: Option<SpanRef<'c, R>>,
-    fields: OnceCell<HashMap<&'static str, serde_json::Value>>,
+    fields: OnceCell<JsonFields>,
 }
 
 impl<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> Deref for EventRef<'a, 'b, 'c, R> {
@@ -57,11 +58,11 @@ impl<'a, 'b, 'c, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, 
         self.span.as_ref()
     }
 
-    pub fn fields(&self) -> &HashMap<&'static str, serde_json::Value> {
+    pub fn fields(&self) -> &JsonFields {
         self.fields.get_or_init(|| {
-            let mut fields = JsonFieldsInner::with_capacity(self.event.fields().count());
+            let mut fields = JsonFields::new(self.event.metadata().fields(), "");
             self.event.record(&mut JsonVisitor::new(&mut fields));
-            fields.fields
+            fields
         })
     }
 
@@ -86,8 +87,7 @@ where
     ) -> fmt::Result {
         let mut visit = || {
             let writer = Cursor::new(writer);
-            let mut serializer =
-                serde_json::Serializer::with_formatter(&writer, JsonSubscriberFormatter);
+            let mut serializer = serde_json::Serializer::with_formatter(&writer, CompactFormatter);
 
             let mut serializer = serializer.serialize_map(None)?;
 
@@ -157,7 +157,9 @@ where
                                     }
                                 }
                             },
-                            MaybeCached::Cached(cached @ (Cached::Raw(_) | Cached::RawString(_))) => {
+                            MaybeCached::Cached(
+                                cached @ (Cached::Raw(_) | Cached::RawString(_)),
+                            ) => {
                                 let raw = match &cached {
                                     Cached::Raw(str) => str.as_ref(),
                                     Cached::RawString(string) => string.as_str(),

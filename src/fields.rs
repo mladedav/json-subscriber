@@ -1,74 +1,91 @@
-use std::{
-    collections::HashMap,
-    ops::Deref,
-    sync::{atomic::AtomicUsize, Arc},
-};
+use std::{collections::HashMap, fmt, io, sync::Arc};
 
 use arc_swap::ArcSwapOption;
+use serde::{ser::SerializeMap, Serializer};
+use tracing::field::{Field, FieldSet};
+
+use crate::serde::JsonSubscriberFormatterInsideObject;
+
+type FieldsInner = Arc<HashMap<&'static str, ArcSwapOption<String>>>;
 
 #[derive(Debug, Default)]
-pub(crate) struct JsonFieldsInner {
-    pub(crate) fields: HashMap<&'static str, serde_json::Value>,
-    pub(crate) version: Arc<AtomicUsize>,
-}
-
-impl JsonFieldsInner {
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
-        Self {
-            fields: HashMap::with_capacity(capacity),
-            version: Arc::new(AtomicUsize::new(0)),
-        }
-    }
-
-    pub(crate) fn finish(self) -> JsonFields {
-        JsonFields {
-            inner: self,
-            serialized: ArcSwapOption::new(None),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub(crate) struct JsonFields {
-    pub(crate) inner: JsonFieldsInner,
-    serialized: ArcSwapOption<String>,
+    name: &'static str,
+    fields: FieldsInner,
 }
 
 impl JsonFields {
-    pub(crate) fn serialized(&self) -> Arc<String> {
-        let maybe_serialized = self.serialized.load();
-        if let Some(serialized) = &*maybe_serialized {
-            serialized.clone()
+    pub(crate) fn new(fields: &FieldSet, name: &'static str) -> Self {
+        let mut map = HashMap::with_capacity(fields.len() + 1);
+        for field in fields {
+            if field.name() == name {
+                continue;
+            }
+            map.insert(Self::name(field.name()), ArcSwapOption::default());
+        }
+        Self {
+            fields: Arc::new(map),
+            name,
+        }
+    }
+
+    pub(crate) fn fields(&self) -> &FieldsInner {
+        &self.fields
+    }
+
+    pub(crate) fn set(&self, key: &Field, value: String) {
+        if key.name() == "name" {
+            return;
+        }
+
+        self.fields
+            .get(Self::name(key.name()))
+            .map(|entry| entry.store(Some(Arc::new(value))));
+    }
+
+    fn name(name: &'static str) -> &'static str {
+        if name.starts_with("r#") {
+            &name[2..]
         } else {
-            let serialized = Arc::new(serde_json::to_string(&self.inner.fields).unwrap());
-
-            self.serialized
-                .compare_and_swap(&Option::<Arc<_>>::None, Some(serialized.clone()))
-                .as_ref()
-                .map(Arc::clone)
-                .unwrap_or(serialized)
+            name
         }
     }
 }
 
-impl serde::Serialize for JsonFields {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeMap;
-        let mut serializer = serializer.serialize_map(Some(self.inner.fields.len()))?;
-
-        for (key, value) in &self.inner.fields {
-            serializer.serialize_entry(key, value)?;
-        }
-
-        serializer.end()
-    }
+pub(crate) struct AsObject {
+    fields: Vec<FieldsInner>,
 }
 
-pub(crate) struct FlattenedSpanFields {
-    pub(crate) current_versions: Vec<Arc<AtomicUsize>>,
-    pub(crate) serialized_versions: Vec<usize>,
-    pub(crate) serialized: Arc<str>,
+impl AsObject {
+    pub(crate) fn new() -> Self {
+        Self { fields: Vec::new() }
+    }
+
+    pub(crate) fn single(inner: FieldsInner) -> Self {
+        Self {
+            fields: vec![inner],
+        }
+    }
+
+    pub(crate) fn push(&mut self, inner: FieldsInner) {
+        self.fields.push(inner);
+    }
+
+    pub(crate) fn write<W: io::Write>(&self, writer: W) -> io::Result<()> {
+        let mut serializer = serde_json::Serializer::with_formatter(
+            writer,
+            JsonSubscriberFormatterInsideObject::new(),
+        );
+
+        let mut serializer = serializer.serialize_map(None)?;
+        for fields in &self.fields {
+            for (key, value) in &**fields {
+                if let Some(value) = &*value.load() {
+                    serializer.serialize_entry(key, &**value)?;
+                }
+            }
+        }
+        serializer.end()?;
+        Ok(())
+    }
 }

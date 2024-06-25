@@ -27,7 +27,7 @@ use event::EventRef;
 
 use crate::{
     cached::Cached,
-    fields::{FlattenedSpanFields, JsonFields, JsonFieldsInner},
+    fields::{AsObject, JsonFields},
     visitor::JsonVisitor,
     write_adaptor::WriteAdaptor,
 };
@@ -113,18 +113,14 @@ where
         let mut extensions = span.extensions_mut();
 
         if extensions.get_mut::<JsonFields>().is_none() {
-            let mut fields = JsonFieldsInner::default();
-            let mut visitor = JsonVisitor::new(&mut fields);
+            let fields = JsonFields::new(attrs.fields(), attrs.metadata().name());
+            let mut visitor = JsonVisitor::new(&fields);
             attrs.record(&mut visitor);
-            drop(visitor);
-            fields
-                .fields
-                .insert("name", serde_json::Value::from(attrs.metadata().name()));
-            let fields = fields.finish();
             extensions.insert(fields);
         } else if self.log_internal_errors {
             eprintln!(
-                "[json-subscriber] Unable to format the following event, ignoring: {attrs:?}",
+                "[json-subscriber] Unable to format the following event because something seems \
+                 to have processed it already, ignoring: {attrs:?}",
             );
         }
     }
@@ -137,8 +133,8 @@ where
             return;
         };
 
-        let mut extensions = span.extensions_mut();
-        let Some(fields) = extensions.get_mut::<JsonFields>() else {
+        let extensions = span.extensions();
+        let Some(fields) = extensions.get::<JsonFields>() else {
             if self.log_internal_errors {
                 eprintln!(
                     "[json-subscriber] Span was created but does not contain formatted fields, \
@@ -148,7 +144,7 @@ where
             return;
         };
 
-        values.record(&mut JsonVisitor::new(&mut fields.inner));
+        values.record(&mut JsonVisitor::new(&fields));
     }
 
     fn on_enter(&self, _id: &Id, _ctx: Context<'_, S>) {}
@@ -663,18 +659,22 @@ where
         if flatten {
             self.schema.insert(
                 SchemaKey::from(key.into()),
-                JsonValue::DynamicFromEvent(Box::new(move |event| {
-                    Some(DynamicJsonValue {
-                        flatten: true,
-                        value: DynamicJsonValueInner::FieldMap(event.fields().clone()),
-                    })
+                JsonValue::DynamicRawFromEvent(Box::new(move |event, writer| {
+                    AsObject::single(event.fields().fields().clone())
+                        .write(WriteAdaptor::new(writer))
+                        .unwrap();
+                    Ok(())
                 })),
             );
         } else {
             self.schema.insert(
                 SchemaKey::from(key.into()),
                 JsonValue::DynamicRawFromEvent(Box::new(move |event, writer| {
-                    serde_json::to_writer(WriteAdaptor::new(writer), event.fields()).unwrap();
+                    writer.write_char('{');
+                    AsObject::single(event.fields().fields().clone())
+                        .write(WriteAdaptor::new(writer))
+                        .unwrap();
+                    writer.write_char('}');
                     Ok(())
                 })),
             );
@@ -690,7 +690,7 @@ where
             JsonValue::DynamicCachedFromSpan(Box::new(move |span| {
                 span.extensions()
                     .get::<JsonFields>()
-                    .map(|fields| Cached::RawString(fields.serialized()))
+                    .map(|fields| Cached::RawString(todo!()))
             })),
         );
         self
@@ -705,11 +705,7 @@ where
                 Some(Cached::Array(
                     span.scope()
                         .from_root()
-                        .filter_map(|span| {
-                            span.extensions()
-                                .get::<JsonFields>()
-                                .map(JsonFields::serialized)
-                        })
+                        .filter_map(|span| span.extensions().get::<JsonFields>().map(|_| todo!()))
                         .collect::<Vec<_>>(),
                 ))
             })),
@@ -725,47 +721,23 @@ where
     pub(crate) fn flatten_span_list(&mut self, key: impl Into<String>) -> &mut Self {
         self.schema.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicCachedFromSpan(Box::new(|span| {
-                {
-                    // Drop the extensions
-                    let extensions = span.extensions();
-                    if let Some(cached) = extensions.get::<FlattenedSpanFields>() {
-                        let reload_needed = cached
-                            .serialized_versions
-                            .iter()
-                            .zip(&cached.current_versions)
-                            .any(|(serialized, current)| {
-                                *serialized != current.load(Ordering::Relaxed)
-                            });
-
-                        if !reload_needed {
-                            return Some(Cached::Raw(cached.serialized.clone()));
-                        }
-                    }
-                }
-
-                let mut all_fields = BTreeMap::new();
-                let mut current_versions = Vec::new();
-                let mut serialized_versions = Vec::new();
-                for span in span.scope().from_root() {
-                    let extensions = span.extensions();
-                    let fields = extensions.get::<JsonFields>().unwrap();
-                    serialized_versions.push(fields.inner.version.load(Ordering::Acquire));
-                    all_fields.extend(fields.inner.fields.clone());
-                    current_versions.push(fields.inner.version.clone());
-                }
-
-                let serialized = Arc::<str>::from(serde_json::to_string(&all_fields).unwrap());
-
-                let span_fields = FlattenedSpanFields {
-                    current_versions,
-                    serialized_versions,
-                    serialized: serialized.clone(),
+            JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
+                let Some(span) = event.parent_span() else {
+                    return Ok(());
                 };
+                let mut serialize = AsObject::new();
+                for fields in span.scope().from_root().filter_map(|span| {
+                    let extensions = span.extensions();
+                    extensions
+                        .get::<JsonFields>()
+                        .map(|fields| fields.fields().clone())
+                }) {
+                    serialize.push(fields);
+                }
 
-                span.extensions_mut().replace(span_fields);
+                serialize.write(WriteAdaptor::new(writer)).unwrap();
 
-                Some(Cached::Raw(serialized))
+                Ok(())
             })),
         );
         self
