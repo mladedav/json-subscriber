@@ -170,16 +170,16 @@ pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         let targets = match env::var("RUST_LOG") {
             Ok(var) => {
                 Targets::from_str(&var)
-                    .map_err(|e| {
-                        eprintln!("Ignoring `RUST_LOG={:?}`: {}", var, e);
+                    .map_err(|error| {
+                        eprintln!("Ignoring `RUST_LOG={var:?}`: {error}");
                     })
                     .unwrap_or_default()
             },
             Err(env::VarError::NotPresent) => {
                 Targets::new().with_default(tracing_core::LevelFilter::INFO)
             },
-            Err(e) => {
-                eprintln!("Ignoring `RUST_LOG`: {}", e);
+            Err(error) => {
+                eprintln!("Ignoring `RUST_LOG`: {error}");
                 Targets::new().with_default(tracing_core::LevelFilter::INFO)
             },
         };
