@@ -725,7 +725,13 @@ where
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
                 writer.write_str("\"")?;
-                writer.write_str(event.metadata().target())?;
+                let mut rest = event.metadata().target();
+                while let Some((before, after)) = rest.split_once('"') {
+                    writer.write_str(before)?;
+                    writer.write_str(r#"\""#)?;
+                    rest = after;
+                }
+                writer.write_str(rest)?;
                 writer.write_str("\"")
             })),
         );
@@ -743,7 +749,13 @@ where
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
                 event.metadata().file().map_or(Ok(()), |file| {
                     writer.write_str("\"")?;
-                    writer.write_str(file)?;
+                    let mut rest = file;
+                    while let Some((before, after)) = rest.split_once('"') {
+                        writer.write_str(before)?;
+                        writer.write_str(r#"\""#)?;
+                        rest = after;
+                    }
+                    writer.write_str(rest)?;
                     writer.write_str("\"")
                 })
             })),
@@ -774,7 +786,13 @@ where
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
                 writer.write_str("\"")?;
-                writer.write_str(event.metadata().level().as_str())?;
+                let mut rest = event.metadata().level().as_str();
+                while let Some((before, after)) = rest.split_once('"') {
+                    writer.write_str(before)?;
+                    writer.write_str(r#"\""#)?;
+                    rest = after;
+                }
+                writer.write_str(rest)?;
                 writer.write_str("\"")
             })),
         );
@@ -791,7 +809,13 @@ where
             JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
                 std::thread::current().name().map_or(Ok(()), |name| {
                     writer.write_str("\"")?;
-                    writer.write_str(name)?;
+                    let mut rest = name;
+                    while let Some((before, after)) = rest.split_once('"') {
+                        writer.write_str(before)?;
+                        writer.write_str(r#"\""#)?;
+                        rest = after;
+                    }
+                    writer.write_str(rest)?;
                     writer.write_str("\"")
                 })
             })),
