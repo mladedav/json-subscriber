@@ -409,6 +409,27 @@ where
         );
     }
 
+    pub fn add_multiple_dynamic_fields<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
+    where
+        for<'a> Fun: Fn(&'a Event<'_>, &Context<'_, S>) -> Res + Send + Sync + 'a,
+        Res: IntoIterator<Item = (String, serde_json::Value)>,
+    {
+        self.schema.insert(
+            SchemaKey::from(key.into()),
+            JsonValue::DynamicFromEvent(Box::new(move |event| {
+                Some(DynamicJsonValue {
+                    flatten: true,
+                    value: serde_json::to_value(
+                        mapper(event.event(), event.context())
+                            .into_iter()
+                            .collect::<Vec<_>>(),
+                    )
+                    .ok()?,
+                })
+            })),
+        );
+    }
+
     pub fn add_from_span<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
     where
         for<'a> Fun: Fn(&'a SpanRef<'_, S>) -> Option<Res> + Send + Sync + 'a,
