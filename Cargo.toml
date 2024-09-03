@@ -34,8 +34,8 @@ tracing-subscriber = { version = "0.3.18", default-features = false, features = 
 ] }
 
 # OpenTelemetry
-tracing-opentelemetry = { version = "0.24.0", default-features = false, optional = true }
-opentelemetry = { version = "0.23.0", default-features = false, optional = true }
+tracing-opentelemetry = { version = "0.25.0", default-features = false, optional = true }
+opentelemetry = { version = "0.24.0", default-features = false, optional = true }
 # OpenTelemetry depends on this but with a version such that minimal versions are broken. We do not use this.
 async-trait = { version = "0.1.9", default-features = false, optional = true }
 
@@ -44,10 +44,10 @@ criterion = { version = "0.5.1", default-features = false }
 snafu = "0.6.10"
 thiserror = "1.0.31"
 tracing = { version = "0.1", features = ["attributes"] }
-tracing-subscriber = { version = "0.3", features = ["json"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
-opentelemetry_sdk = { version = "0.23.0", default-features = false }
-opentelemetry-stdout = "0.4"
+opentelemetry_sdk = { version = "0.24.1", default-features = false }
+opentelemetry-stdout = "0.5"
 
 [package.metadata.docs.rs]
 all-features = true
