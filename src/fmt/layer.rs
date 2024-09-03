@@ -24,7 +24,7 @@ use super::names::{
     THREAD_NAME,
     TIMESTAMP,
 };
-use crate::layer::JsonLayer;
+use crate::layer::{JsonLayer, SchemaKey};
 
 /// A [`Layer`] that logs JSON formatted representations of `tracing` events.
 ///
@@ -72,7 +72,7 @@ impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Default for Layer<S> {
 
         inner
             // If we do not call this, fields are not printed at all.
-            .with_event(FIELDS, false)
+            .with_event(FIELDS)
             .with_timer(TIMESTAMP, SystemTime)
             .with_target(TARGET)
             .with_level(LEVEL)
@@ -337,7 +337,13 @@ where
     /// Sets the JSON subscriber being built to flatten event metadata.
     #[must_use]
     pub fn flatten_event(mut self, flatten_event: bool) -> Self {
-        self.inner.with_event(FIELDS, flatten_event);
+        if flatten_event {
+            self.inner.remove_field(FIELDS);
+            self.inner.with_flattened_event();
+        } else {
+            self.inner.remove_field_inner(&SchemaKey::FlattenedEvent);
+            self.inner.with_event(FIELDS);
+        }
         self
     }
 
@@ -374,7 +380,7 @@ where
     #[must_use]
     pub fn with_flat_span_list(mut self, flatten_span_list: bool) -> Self {
         if flatten_span_list {
-            self.inner.flatten_span_list(SPAN_LIST);
+            self.inner.with_flattened_span_fields(SPAN_LIST);
         } else {
             self.inner.remove_field(SPAN_LIST);
         }
@@ -609,7 +615,7 @@ mod tests {
 
         // Notice that there is `level` twice so this is not a valid JSON.
         #[rustfmt::skip]
-        let expected = "{\"level\":\"this is a bug\",\"message\":\"some json test\",\"level\":\"INFO\",\"timestamp\":\"fake time\"}\n";
+        let expected = "{\"level\":\"INFO\",\"timestamp\":\"fake time\",\"level\":\"this is a bug\",\"message\":\"some json test\"}\n";
 
         let layer = Layer::default()
             .flatten_event(true)

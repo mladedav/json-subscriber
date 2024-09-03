@@ -180,7 +180,11 @@ where
             layer.with_thread_ids(THREAD_ID);
         }
 
-        layer.with_event(FIELDS, self.flatten_event);
+        if self.flatten_event {
+            layer.with_flattened_event();
+        } else {
+            layer.with_event(FIELDS);
+        }
 
         if self.display_current_span {
             layer.with_current_span(CURRENT_SPAN);

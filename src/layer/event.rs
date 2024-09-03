@@ -12,7 +12,7 @@ use tracing_subscriber::{
 use crate::{
     cached::Cached,
     cursor::Cursor,
-    layer::{DynamicJsonValue, JsonLayer, JsonValue, SchemaKey},
+    layer::{JsonLayer, JsonValue, SchemaKey},
     serde::JsonSubscriberFormatter,
 };
 
@@ -95,99 +95,114 @@ where
                 let Some(value) = resolve_json_value(value, &event_ref) else {
                     continue;
                 };
-                match key {
-                    SchemaKey::Static(key) => {
-                        match value {
-                            MaybeCached::Serde(value) => {
-                                if value.flatten {
-                                    let map = value.value.as_object().unwrap();
-                                    if !map.is_empty() {
-                                        if serialized_anything && !serialized_anything_serde {
-                                            writer.inner_mut().push(',');
-                                        }
-                                        serialized_anything = true;
-                                        serialized_anything_serde = true;
-                                        for (key, value) in map {
-                                            serializer.serialize_entry(key, value)?;
-                                        }
-                                    }
-                                } else {
+                match value {
+                    MaybeCached::Serde(value) => {
+                        match key {
+                            SchemaKey::Static(key) => {
+                                if serialized_anything && !serialized_anything_serde {
+                                    writer.inner_mut().push(',');
+                                }
+                                serialized_anything = true;
+                                serialized_anything_serde = true;
+                                serializer.serialize_entry(key, &value)?;
+                            },
+                            SchemaKey::Uuid(_) | SchemaKey::FlattenedEvent => {
+                                let map = value.as_object().unwrap();
+                                if !map.is_empty() {
                                     if serialized_anything && !serialized_anything_serde {
                                         writer.inner_mut().push(',');
                                     }
                                     serialized_anything = true;
                                     serialized_anything_serde = true;
-                                    serializer.serialize_entry(key, &value.value)?;
-                                }
-                            },
-                            MaybeCached::Cached(Cached::Raw(raw)) => {
-                                debug_assert!(
-                                    serde_json::to_value(&*raw).is_ok(),
-                                    "[json-subscriber] provided cached value is not valid json: \
-                                     {raw}",
-                                );
-                                let mut writer = writer.inner_mut();
-                                if serialized_anything {
-                                    writer.push(',');
-                                }
-                                serialized_anything = true;
-                                writer.push('"');
-                                writer.push_str(key);
-                                writer.push_str("\":");
-                                writer.push_str(&raw);
-                            },
-                            MaybeCached::Cached(Cached::Array(arr)) => {
-                                let mut writer = writer.inner_mut();
-                                if serialized_anything {
-                                    writer.push(',');
-                                }
-                                serialized_anything = true;
-                                writer.push('"');
-                                writer.push_str(key);
-                                writer.push_str("\":[");
-                                let mut first = true;
-                                for raw in arr {
-                                    debug_assert!(
-                                        serde_json::to_value(&*raw).is_ok(),
-                                        "[json-subscriber] provided cached value in array is not \
-                                         valid json: {raw}",
-                                    );
-                                    if !first {
-                                        writer.push(',');
+                                    for (key, value) in map {
+                                        serializer.serialize_entry(key, value)?;
                                     }
-                                    first = false;
-                                    writer.push_str(&raw);
                                 }
-                                writer.push(']');
                             },
-                            MaybeCached::Raw(raw_fun) => {
-                                let mut writer = writer.inner_mut();
-                                let rollback_position = writer.len();
-                                if serialized_anything {
-                                    writer.push(',');
-                                }
-                                writer.push('"');
-                                writer.push_str(key);
-                                writer.push_str("\":");
-                                let start_position = writer.len();
-                                match raw_fun(&event_ref, &mut *writer) {
-                                    Ok(()) => {
-                                        debug_assert!(
-                                            serde_json::to_value(&writer[start_position..]).is_ok(),
-                                            "[json-subscriber] raw value factory created invalid \
-                                             json: {}",
-                                            &writer[start_position..],
-                                        );
-                                        serialized_anything = true;
-                                    },
-                                    Err(error) => {
-                                        eprintln!(
-                                            "[json-subscriber] unable to format raw value to \
-                                             string: {error}"
-                                        );
-                                        writer.truncate(rollback_position);
-                                    },
-                                }
+                        }
+                    },
+                    MaybeCached::Cached(Cached::Raw(raw)) => {
+                        let SchemaKey::Static(key) = key else {
+                            panic!(
+                                "[json-subscriber] provided raw cached value has invalid key: \
+                                 {key:?}"
+                            );
+                        };
+                        debug_assert!(
+                            serde_json::to_value(&*raw).is_ok(),
+                            "[json-subscriber] provided cached value is not valid json: {raw}",
+                        );
+                        let mut writer = writer.inner_mut();
+                        if serialized_anything {
+                            writer.push(',');
+                        }
+                        serialized_anything = true;
+                        writer.push('"');
+                        writer.push_str(key);
+                        writer.push_str("\":");
+                        writer.push_str(&raw);
+                    },
+                    MaybeCached::Cached(Cached::Array(arr)) => {
+                        let SchemaKey::Static(key) = key else {
+                            panic!(
+                                "[json-subscriber] provided raw cached array has invalid key: \
+                                 {key:?}"
+                            );
+                        };
+                        let mut writer = writer.inner_mut();
+                        if serialized_anything {
+                            writer.push(',');
+                        }
+                        serialized_anything = true;
+                        writer.push('"');
+                        writer.push_str(key);
+                        writer.push_str("\":[");
+                        let mut first = true;
+                        for raw in arr {
+                            debug_assert!(
+                                serde_json::to_value(&*raw).is_ok(),
+                                "[json-subscriber] provided cached value in array is not valid \
+                                 json: {raw}",
+                            );
+                            if !first {
+                                writer.push(',');
+                            }
+                            first = false;
+                            writer.push_str(&raw);
+                        }
+                        writer.push(']');
+                    },
+                    MaybeCached::Raw(raw_fun) => {
+                        let SchemaKey::Static(key) = key else {
+                            panic!(
+                                "[json-subscriber] provided raw value factory has invalid key: \
+                                 {key:?}"
+                            );
+                        };
+                        let mut writer = writer.inner_mut();
+                        let rollback_position = writer.len();
+                        if serialized_anything {
+                            writer.push(',');
+                        }
+                        writer.push('"');
+                        writer.push_str(key);
+                        writer.push_str("\":");
+                        let start_position = writer.len();
+                        match raw_fun(&event_ref, &mut *writer) {
+                            Ok(()) => {
+                                debug_assert!(
+                                    serde_json::to_value(&writer[start_position..]).is_ok(),
+                                    "[json-subscriber] raw value factory created invalid json: {}",
+                                    &writer[start_position..],
+                                );
+                                serialized_anything = true;
+                            },
+                            Err(error) => {
+                                eprintln!(
+                                    "[json-subscriber] unable to format raw value to string: \
+                                     {error}"
+                                );
+                                writer.truncate(rollback_position);
                             },
                         }
                     },
@@ -232,7 +247,7 @@ fn resolve_json_value<'a, S: Subscriber + for<'lookup> LookupSpan<'lookup>>(
 
 #[allow(clippy::type_complexity)]
 enum MaybeCached<'a, S: for<'lookup> LookupSpan<'lookup>> {
-    Serde(Cow<'a, DynamicJsonValue>),
+    Serde(Cow<'a, serde_json::Value>),
     Cached(Cached),
     Raw(
         &'a Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,

@@ -1,4 +1,11 @@
-use std::{borrow::Cow, cell::RefCell, collections::{BTreeMap, HashMap}, fmt, io, sync::Arc};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+    fmt,
+    io,
+    sync::Arc,
+};
 
 use serde::Serialize;
 use tracing_core::{
@@ -18,6 +25,7 @@ use tracing_subscriber::{
 mod event;
 
 use event::EventRef;
+use uuid::Uuid;
 
 use crate::{
     cached::Cached,
@@ -37,8 +45,16 @@ pub struct JsonLayer<S: for<'lookup> LookupSpan<'lookup> = Registry, W = fn() ->
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum SchemaKey {
+pub(crate) enum SchemaKey {
     Static(Cow<'static, str>),
+    Uuid(Uuid),
+    FlattenedEvent,
+}
+
+impl SchemaKey {
+    fn new_uuid() -> Self {
+        Self::Uuid(uuid::Uuid::new_v4())
+    }
 }
 
 impl From<Cow<'static, str>> for SchemaKey {
@@ -59,19 +75,13 @@ impl From<String> for SchemaKey {
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct DynamicJsonValue {
-    pub(crate) flatten: bool,
-    pub(crate) value: serde_json::Value,
-}
-
 #[allow(clippy::type_complexity)]
 pub(crate) enum JsonValue<S: for<'lookup> LookupSpan<'lookup>> {
-    Serde(DynamicJsonValue),
+    Serde(serde_json::Value),
     DynamicFromEvent(
-        Box<dyn Fn(&EventRef<'_, '_, '_, S>) -> Option<DynamicJsonValue> + Send + Sync>,
+        Box<dyn Fn(&EventRef<'_, '_, '_, S>) -> Option<serde_json::Value> + Send + Sync>,
     ),
-    DynamicFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<DynamicJsonValue> + Send + Sync>),
+    DynamicFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>),
     DynamicCachedFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
     DynamicRawFromEvent(
         Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
@@ -363,13 +373,8 @@ where
     /// # fn get_hostname() -> &'static str { "localhost" }
     /// ```
     pub fn add_static_field(&mut self, key: impl Into<String>, value: serde_json::Value) {
-        self.schema.insert(
-            SchemaKey::from(key.into()),
-            JsonValue::Serde(DynamicJsonValue {
-                flatten: false,
-                value,
-            }),
-        );
+        self.schema
+            .insert(SchemaKey::from(key.into()), JsonValue::Serde(value));
     }
 
     /// Removes a field that was inserted to the output.
@@ -390,7 +395,11 @@ where
     /// # tracing_subscriber::registry().with(layer);
     /// ```
     pub fn remove_field(&mut self, key: impl Into<String>) {
-        self.schema.remove(&SchemaKey::from(key.into()));
+        self.remove_field_inner(&SchemaKey::from(key.into()));
+    }
+
+    pub(crate) fn remove_field_inner(&mut self, key: &SchemaKey) {
+        self.schema.remove(key);
     }
 
     pub fn add_dynamic_field<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
@@ -401,31 +410,25 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromEvent(Box::new(move |event| {
-                Some(DynamicJsonValue {
-                    flatten: false,
-                    value: serde_json::to_value(mapper(event.event(), event.context())).ok()?,
-                })
+                serde_json::to_value(mapper(event.event(), event.context())).ok()
             })),
         );
     }
 
-    pub fn add_multiple_dynamic_fields<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
+    pub fn add_multiple_dynamic_fields<Fun, Res>(&mut self, mapper: Fun)
     where
         for<'a> Fun: Fn(&'a Event<'_>, &Context<'_, S>) -> Res + Send + Sync + 'a,
         Res: IntoIterator<Item = (String, serde_json::Value)>,
     {
         self.schema.insert(
-            SchemaKey::from(key.into()),
+            SchemaKey::new_uuid(),
             JsonValue::DynamicFromEvent(Box::new(move |event| {
-                Some(DynamicJsonValue {
-                    flatten: true,
-                    value: serde_json::to_value(
-                        mapper(event.event(), event.context())
-                            .into_iter()
-                            .collect::<HashMap<_, _>>(),
-                    )
-                    .ok()?,
-                })
+                serde_json::to_value(
+                    mapper(event.event(), event.context())
+                        .into_iter()
+                        .collect::<HashMap<_, _>>(),
+                )
+                .ok()
             })),
         );
     }
@@ -438,10 +441,7 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(move |span| {
-                Some(DynamicJsonValue {
-                    flatten: false,
-                    value: serde_json::to_value(mapper(span)).ok()?,
-                })
+                serde_json::to_value(mapper(span)).ok()
             })),
         );
     }
@@ -550,10 +550,7 @@ where
             JsonValue::DynamicFromSpan(Box::new(move |span| {
                 let extensions = span.extensions();
                 let extension = extensions.get::<Ext>()?;
-                Some(DynamicJsonValue {
-                    flatten: false,
-                    value: serde_json::to_value(mapper(extension)).ok()?,
-                })
+                serde_json::to_value(mapper(extension)).ok()
             })),
         );
     }
@@ -616,10 +613,7 @@ where
             JsonValue::DynamicFromSpan(Box::new(move |span| {
                 let extensions = span.extensions();
                 let extension = extensions.get::<Ext>()?;
-                Some(DynamicJsonValue {
-                    flatten: false,
-                    value: serde_json::to_value(mapper(extension)).ok()?,
-                })
+                serde_json::to_value(mapper(extension)).ok()
             })),
         );
     }
@@ -630,19 +624,23 @@ where
     /// If set to `true`, it is the user's responsibility to make sure that the field names will not
     /// clash with other defined fields. If they clash, invalid JSON with multiple fields with the
     /// same key may be generated.
-    pub fn with_event(&mut self, key: impl Into<String>, flatten: bool) -> &mut Self {
+    pub fn with_event(&mut self, key: impl Into<String>) -> &mut Self {
+        self.with_event_inner(SchemaKey::from(key.into()))
+    }
+
+    pub fn with_flattened_event(&mut self) -> &mut Self {
+        self.with_event_inner(SchemaKey::FlattenedEvent)
+    }
+
+    fn with_event_inner(&mut self, key: SchemaKey) -> &mut Self {
         self.schema.insert(
-            SchemaKey::from(key.into()),
+            key,
             JsonValue::DynamicFromEvent(Box::new(move |event| {
-                Some(DynamicJsonValue {
-                    flatten,
-                    value: serde_json::to_value(event.field_map()).ok()?,
-                })
+                serde_json::to_value(event.field_map()).ok()
             })),
         );
         self
     }
-
     /// Sets whether or not the log line will include the current span in formatted events. If set
     /// to true, it will be printed with the key `span`.
     pub fn with_current_span(&mut self, key: impl Into<String>) -> &mut Self {
@@ -683,7 +681,7 @@ where
     /// values of spans that are closer to the root spans.
     ///
     /// This overrides any previous calls to [`with_span_list`](Self::with_span_list).
-    pub(crate) fn flatten_span_list(&mut self, key: impl Into<String>) -> &mut Self {
+    pub(crate) fn with_flattened_span_fields(&mut self, key: impl Into<String>) -> &mut Self {
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(|span| {
@@ -705,10 +703,7 @@ where
                             accumulator
                         });
 
-                Some(DynamicJsonValue {
-                    flatten: false,
-                    value: serde_json::to_value(fields).ok()?,
-                })
+                serde_json::to_value(fields).ok()
             })),
         );
         self
@@ -730,11 +725,7 @@ where
             JsonValue::DynamicFromEvent(Box::new(move |_| {
                 let mut timestamp = String::with_capacity(32);
                 timer.format_time(&mut Writer::new(&mut timestamp)).ok()?;
-
-                Some(DynamicJsonValue {
-                    flatten: false,
-                    value: timestamp.into(),
-                })
+                Some(timestamp.into())
             })),
         );
         self
@@ -876,29 +867,21 @@ where
             self.schema.insert(
                 SchemaKey::from("openTelemetry"),
                 JsonValue::DynamicFromSpan(Box::new(|span| {
-                    span.extensions()
-                        .get::<OtelData>()
-                        .and_then(|otel_data| {
-                            // We should use the parent first if available because we can create a
-                            // new trace and then change the parent. In that case the value in the
-                            // builder is not updated.
-                            let mut trace_id = otel_data.parent_cx.span().span_context().trace_id();
-                            if trace_id == TraceId::INVALID {
-                                trace_id = otel_data.builder.trace_id?;
-                            }
-                            let span_id = otel_data.builder.span_id?;
+                    span.extensions().get::<OtelData>().and_then(|otel_data| {
+                        // We should use the parent first if available because we can create a
+                        // new trace and then change the parent. In that case the value in the
+                        // builder is not updated.
+                        let mut trace_id = otel_data.parent_cx.span().span_context().trace_id();
+                        if trace_id == TraceId::INVALID {
+                            trace_id = otel_data.builder.trace_id?;
+                        }
+                        let span_id = otel_data.builder.span_id?;
 
-                            Some(serde_json::json!({
-                                "traceId": trace_id.to_string(),
-                                "spanId": span_id.to_string(),
-                            }))
-                        })
-                        .map(|value| {
-                            DynamicJsonValue {
-                                flatten: false,
-                                value,
-                            }
-                        })
+                        Some(serde_json::json!({
+                            "traceId": trace_id.to_string(),
+                            "spanId": span_id.to_string(),
+                        }))
+                    })
                 })),
             );
         } else {
