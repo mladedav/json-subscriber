@@ -736,15 +736,7 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
-                writer.write_str("\"")?;
-                let mut rest = event.metadata().target();
-                while let Some((before, after)) = rest.split_once('"') {
-                    writer.write_str(before)?;
-                    writer.write_str(r#"\""#)?;
-                    rest = after;
-                }
-                writer.write_str(rest)?;
-                writer.write_str("\"")
+                write_escaped(writer, event.metadata().target())
             })),
         );
 
@@ -759,17 +751,10 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
-                event.metadata().file().map_or(Ok(()), |file| {
-                    writer.write_str("\"")?;
-                    let mut rest = file;
-                    while let Some((before, after)) = rest.split_once('"') {
-                        writer.write_str(before)?;
-                        writer.write_str(r#"\""#)?;
-                        rest = after;
-                    }
-                    writer.write_str(rest)?;
-                    writer.write_str("\"")
-                })
+                event
+                    .metadata()
+                    .file()
+                    .map_or(Ok(()), |file| write_escaped(writer, file))
             })),
         );
         self
@@ -797,15 +782,7 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
-                writer.write_str("\"")?;
-                let mut rest = event.metadata().level().as_str();
-                while let Some((before, after)) = rest.split_once('"') {
-                    writer.write_str(before)?;
-                    writer.write_str(r#"\""#)?;
-                    rest = after;
-                }
-                writer.write_str(rest)?;
-                writer.write_str("\"")
+                write_escaped(writer, event.metadata().level().as_str())
             })),
         );
         self
@@ -819,17 +796,9 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
-                std::thread::current().name().map_or(Ok(()), |name| {
-                    writer.write_str("\"")?;
-                    let mut rest = name;
-                    while let Some((before, after)) = rest.split_once('"') {
-                        writer.write_str(before)?;
-                        writer.write_str(r#"\""#)?;
-                        rest = after;
-                    }
-                    writer.write_str(rest)?;
-                    writer.write_str("\"")
-                })
+                std::thread::current()
+                    .name()
+                    .map_or(Ok(()), |name| write_escaped(writer, name))
             })),
         );
         self
@@ -843,9 +812,10 @@ where
         self.schema.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
-                writer.write_str("\"")?;
-                write!(writer, "{:?}", std::thread::current().id())?;
-                writer.write_str("\"")
+                use std::fmt::Write;
+                let mut value = String::with_capacity(12);
+                write!(&mut value, "{:?}", std::thread::current().id())?;
+                write_escaped(writer, &value)
             })),
         );
 
@@ -890,6 +860,24 @@ where
 
         self
     }
+}
+
+fn write_escaped(writer: &mut dyn fmt::Write, value: &str) -> Result<(), fmt::Error> {
+    let mut rest = value;
+    writer.write_str("\"")?;
+    let mut shift = 0;
+    while let Some(position) = rest
+        .get(shift..)
+        .and_then(|haystack| haystack.find(['\"', '\\']))
+    {
+        let (before, after) = rest.split_at(position + shift);
+        writer.write_str(before)?;
+        writer.write_char('\\')?;
+        rest = after;
+        shift = 1;
+    }
+    writer.write_str(rest)?;
+    writer.write_str("\"")
 }
 
 #[cfg(test)]

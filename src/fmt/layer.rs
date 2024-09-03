@@ -665,4 +665,48 @@ mod tests {
             tracing::info!("some json test");
         });
     }
+
+    #[test]
+    fn target_quote() {
+        let expected = json!(
+            {
+                "timestamp": "fake time",
+                "target": "\"",
+                "fields": {
+                    "message": "some json test",
+                },
+            }
+        );
+
+        let layer = Layer::default()
+            .with_span_list(false)
+            .with_current_span(false)
+            .with_level(false);
+
+        test_json(&expected, layer, || {
+            tracing::info!(target: "\"", "some json test");
+        });
+    }
+
+    #[test]
+    fn target_backslash() {
+        let expected = json!(
+            {
+                "timestamp": "fake time",
+                "target": "\\hello\\\\world\\",
+                "fields": {
+                    "message": "some json test",
+                },
+            }
+        );
+
+        let layer = Layer::default()
+            .with_span_list(false)
+            .with_current_span(false)
+            .with_level(false);
+
+        test_json(&expected, layer, || {
+            tracing::info!(target: "\\hello\\\\world\\", "some json test");
+        });
+    }
 }
