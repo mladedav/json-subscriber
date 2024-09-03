@@ -202,6 +202,7 @@ pub fn try_init() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 ///
 /// ```rust
 /// # use tracing_subscriber::EnvFilter;
+/// #[cfg(feature = "env-filter")]
 /// json_subscriber::fmt()
 ///     .with_env_filter(EnvFilter::from_default_env())
 ///     .init();

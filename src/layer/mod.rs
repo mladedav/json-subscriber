@@ -275,7 +275,7 @@ where
         &mut self.make_writer
     }
 
-    /// Configures the subscriber to support [`libtest`'s output capturing][capturing] when used in
+    /// Configures the subscriber to support [`libtest`]'s output capturing][capturing] when used in
     /// unit tests.
     ///
     /// See [`TestWriter`] for additional details.
