@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fmt, io, sync::Arc};
+use std::{borrow::Cow, cell::RefCell, collections::{BTreeMap, HashMap}, fmt, io, sync::Arc};
 
 use serde::Serialize;
 use tracing_core::{
@@ -422,7 +422,7 @@ where
                     value: serde_json::to_value(
                         mapper(event.event(), event.context())
                             .into_iter()
-                            .collect::<Vec<_>>(),
+                            .collect::<HashMap<_, _>>(),
                     )
                     .ok()?,
                 })
