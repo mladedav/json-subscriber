@@ -318,6 +318,7 @@ version = "0.1.2"
 dependencies = [
  "async-trait",
  "criterion",
+ "lazy_static",
  "opentelemetry",
  "opentelemetry-stdout",
  "opentelemetry_sdk",

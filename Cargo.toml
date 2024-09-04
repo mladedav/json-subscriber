@@ -22,6 +22,7 @@ __private_docs = ["tracing-subscriber/time", "tracing-subscriber/local-time"]
 [dependencies]
 serde = "1.0.202"
 serde_json = "1.0.117"
+uuid = { version = "1.10.0", features = ["v4"] }
 
 tracing = { version = "0.1.40", default-features = false, features = ["std"] }
 tracing-core = { version = "0.1.32", default-features = false }
@@ -38,7 +39,8 @@ tracing-opentelemetry = { version = "0.25.0", default-features = false, optional
 opentelemetry = { version = "0.24.0", default-features = false, optional = true }
 # OpenTelemetry depends on this but with a version such that minimal versions are broken. We do not use this.
 async-trait = { version = "0.1.9", default-features = false, optional = true }
-uuid = { version = "1.10.0", features = ["v4"] }
+# Another dependency that needs to have higher version to compile
+lazy_static = { version = "1.1.0", default-features = false, optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false }
