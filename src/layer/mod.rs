@@ -292,7 +292,7 @@ where
         &mut self.make_writer
     }
 
-    /// Configures the subscriber to support [`libtest`]'s output capturing][capturing] when used in
+    /// Configures the subscriber to support [`libtest`'s output capturing][capturing] when used in
     /// unit tests.
     ///
     /// See [`TestWriter`] for additional details.
@@ -374,9 +374,7 @@ where
     /// let mut layer = json_subscriber::JsonLayer::stdout();
     /// layer.add_static_field(
     ///     "hostname",
-    ///     serde_json::json!({
-    ///         "hostname": get_hostname(),
-    ///     }),
+    ///     serde_json::Value::String(get_hostname().to_owned()),
     /// );
     /// # tracing_subscriber::registry().with(layer);
     /// # fn get_hostname() -> &'static str { "localhost" }
@@ -386,7 +384,9 @@ where
             .insert(SchemaKey::from(key.into()), JsonValue::Serde(value));
     }
 
-    /// Removes a field that was inserted to the output.
+    /// Removes a field that was inserted to the output. This can only remove fields that have a
+    /// static key, not keys added with
+    /// [`add_multiple_dynamic_fields`](Self::add_multiple_dynamic_fields).
     ///
     /// # Examples
     ///
@@ -411,6 +411,30 @@ where
         self.flattened_values.remove(key);
     }
 
+    /// Adds a new dynamic field with a given key to the output. This method is more general than
+    /// [`add_static_field`](Self::add_static_field) but also more expensive.
+    ///
+    /// This method takes a closure argument that will be called with the event and tracing context.
+    /// Through these, the parent span can be accessed among other things. This closure returns an
+    /// `Option` where nothing will be added to the output if `None` is returned.
+    ///
+    /// # Examples
+    ///
+    /// Print an atomic counter.
+    ///
+    /// ```rust
+    /// # use tracing_subscriber::prelude::*;
+    /// # use std::sync::atomic::{AtomicU32, Ordering};
+    /// static COUNTER: AtomicU32 = AtomicU32::new(42);
+    ///
+    /// let mut layer = json_subscriber::JsonLayer::stdout();
+    /// layer.add_dynamic_field(
+    ///     "counter",
+    ///     |_event, _context| {
+    ///         Some(serde_json::Value::Number(COUNTER.load(Ordering::Relaxed).into()))
+    /// });
+    /// # tracing_subscriber::registry().with(layer);
+    /// ```
     pub fn add_dynamic_field<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
     where
         for<'a> Fun: Fn(&'a Event<'_>, &Context<'_, S>) -> Option<Res> + Send + Sync + 'a,
@@ -424,6 +448,38 @@ where
         );
     }
 
+    /// Adds multiple new dynamic field where the keys may not be known when calling this method.
+    ///
+    /// This method takes a closure argument that will be called with the event and tracing context.
+    /// Through these, the parent span can be accessed among other things. This closure returns a
+    /// value which can be iterated over to return a tuple of a `String` which will be used as a
+    /// JSON key and a `serde_json::Value` which will be used as a value. In most cases returning
+    /// `HashMap<String, serde_json::Value>` should be sufficient.
+    ///
+    /// It is the user's responsibility to make sure that no two keys clash as that would create an
+    /// invalid JSON. It's generally better to use [`add_dynamic_field`](Self::add_dynamic_field)
+    /// instead if the field names are known.
+    ///
+    /// # Examples
+    ///
+    /// Print either a question or an answer:
+    ///
+    /// ```rust
+    /// # use tracing_subscriber::prelude::*;
+    ///
+    /// let mut layer = json_subscriber::JsonLayer::stdout();
+    /// layer.add_multiple_dynamic_fields(
+    ///     |_event, _context| {
+    /// #       let condition = true;
+    ///         if condition {
+    ///             [("question".to_owned(), serde_json::Value::String("What?".to_owned()))]
+    ///         } else {
+    ///             [("answer".to_owned(), serde_json::Value::Number(42.into()))]
+    ///         }
+    /// });
+    /// # tracing_subscriber::registry().with(layer);
+    /// # fn get_hostname() -> &'static str { "localhost" }
+    /// ```
     pub fn add_multiple_dynamic_fields<Fun, Res>(&mut self, mapper: Fun)
     where
         for<'a> Fun: Fn(&'a Event<'_>, &Context<'_, S>) -> Res + Send + Sync + 'a,
@@ -442,6 +498,27 @@ where
         );
     }
 
+    /// Adds a new dynamic field with a given key to the output. This method is a specialized
+    /// version of [`add_dynamic_field`](Self::add_dynamic_field) where just a reference to the
+    /// parent span is needed.
+    ///
+    /// This method takes a closure argument that will be called with the parent span context. This
+    /// closure returns an `Option` where nothing will be added to the output if `None` is returned.
+    ///
+    /// # Examples
+    ///
+    /// Print uppercase target:
+    ///
+    /// ```rust
+    /// # use tracing_subscriber::prelude::*;
+    ///
+    /// let mut layer = json_subscriber::JsonLayer::stdout();
+    /// layer.add_from_span(
+    ///     "TARGET",
+    ///     |span| Some(span.metadata().target().to_uppercase())
+    /// );
+    /// # tracing_subscriber::registry().with(layer);
+    /// ```
     pub fn add_from_span<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
     where
         for<'a> Fun: Fn(&'a SpanRef<'_, S>) -> Option<Res> + Send + Sync + 'a,
@@ -627,12 +704,7 @@ where
         );
     }
 
-    /// Print all event fields in an object with the key `fields` if the argument is `false`, or
-    /// flatten all the fields on top level of the JSON log line if set to `true`.
-    ///
-    /// If set to `true`, it is the user's responsibility to make sure that the field names will not
-    /// clash with other defined fields. If they clash, invalid JSON with multiple fields with the
-    /// same key may be generated.
+    /// Print all event fields in an object with the key as specified.
     pub fn with_event(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
@@ -643,6 +715,13 @@ where
         self
     }
 
+    /// Print all event fields, each as its own top level member of the JSON.
+    ///
+    /// It is the user's responsibility to make sure that the field names will not clash with other
+    /// defined members of the output JSON. If they clash, invalid JSON with multiple fields with
+    /// the same key may be generated.
+    ///
+    /// It's therefore preferable to use [`with_event`](Self::with_event) instead.
     pub fn with_flattened_event(&mut self) -> &mut Self {
         self.flattened_values.insert(
             FlatSchemaKey::FlattenedEvent,
@@ -653,8 +732,7 @@ where
         self
     }
 
-    /// Sets whether or not the log line will include the current span in formatted events. If set
-    /// to true, it will be printed with the key `span`.
+    /// Sets whether or not the log line will include the current span in formatted events.
     pub fn with_current_span(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
@@ -668,7 +746,7 @@ where
     }
 
     /// Sets whether or not the formatter will include a list (from root to leaf) of all currently
-    /// entered spans in formatted events. If set to true, it will be printed with the key `spans`.
+    /// entered spans in formatted events.
     pub fn with_span_list(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
@@ -691,8 +769,6 @@ where
     /// Sets the formatter to include an object containing all parent spans' fields. If multiple
     /// ancestor spans recorded the same field, the span closer to the leaf span overrides the
     /// values of spans that are closer to the root spans.
-    ///
-    /// This overrides any previous calls to [`with_span_list`](Self::with_span_list).
     pub(crate) fn with_flattened_span_fields(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
