@@ -24,7 +24,7 @@ use super::names::{
     THREAD_NAME,
     TIMESTAMP,
 };
-use crate::layer::{JsonLayer, SchemaKey};
+use crate::layer::{FlatSchemaKey, JsonLayer};
 
 /// A [`Layer`] that logs JSON formatted representations of `tracing` events.
 ///
@@ -341,7 +341,8 @@ where
             self.inner.remove_field(FIELDS);
             self.inner.with_flattened_event();
         } else {
-            self.inner.remove_field_inner(&SchemaKey::FlattenedEvent);
+            self.inner
+                .remove_flattened_field(&FlatSchemaKey::FlattenedEvent);
             self.inner.with_event(FIELDS);
         }
         self

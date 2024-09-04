@@ -91,43 +91,21 @@ where
             let mut serialized_anything = false;
             let mut serialized_anything_serde = false;
 
-            for (key, value) in &self.schema {
+            for (SchemaKey::Static(key), value) in &self.keyed_values {
                 let Some(value) = resolve_json_value(value, &event_ref) else {
                     continue;
                 };
+
                 match value {
                     MaybeCached::Serde(value) => {
-                        match key {
-                            SchemaKey::Static(key) => {
-                                if serialized_anything && !serialized_anything_serde {
-                                    writer.inner_mut().push(',');
-                                }
-                                serialized_anything = true;
-                                serialized_anything_serde = true;
-                                serializer.serialize_entry(key, &value)?;
-                            },
-                            SchemaKey::Uuid(_) | SchemaKey::FlattenedEvent => {
-                                let map = value.as_object().unwrap();
-                                if !map.is_empty() {
-                                    if serialized_anything && !serialized_anything_serde {
-                                        writer.inner_mut().push(',');
-                                    }
-                                    serialized_anything = true;
-                                    serialized_anything_serde = true;
-                                    for (key, value) in map {
-                                        serializer.serialize_entry(key, value)?;
-                                    }
-                                }
-                            },
+                        if serialized_anything && !serialized_anything_serde {
+                            writer.inner_mut().push(',');
                         }
+                        serialized_anything = true;
+                        serialized_anything_serde = true;
+                        serializer.serialize_entry(key, &value)?;
                     },
                     MaybeCached::Cached(Cached::Raw(raw)) => {
-                        let SchemaKey::Static(key) = key else {
-                            panic!(
-                                "[json-subscriber] provided raw cached value has invalid key: \
-                                 {key:?}"
-                            );
-                        };
                         debug_assert!(
                             serde_json::to_value(&*raw).is_ok(),
                             "[json-subscriber] provided cached value is not valid json: {raw}",
@@ -143,12 +121,6 @@ where
                         writer.push_str(&raw);
                     },
                     MaybeCached::Cached(Cached::Array(arr)) => {
-                        let SchemaKey::Static(key) = key else {
-                            panic!(
-                                "[json-subscriber] provided raw cached array has invalid key: \
-                                 {key:?}"
-                            );
-                        };
                         let mut writer = writer.inner_mut();
                         if serialized_anything {
                             writer.push(',');
@@ -173,12 +145,6 @@ where
                         writer.push(']');
                     },
                     MaybeCached::Raw(raw_fun) => {
-                        let SchemaKey::Static(key) = key else {
-                            panic!(
-                                "[json-subscriber] provided raw value factory has invalid key: \
-                                 {key:?}"
-                            );
-                        };
                         let mut writer = writer.inner_mut();
                         let rollback_position = writer.len();
                         if serialized_anything {
@@ -206,6 +172,29 @@ where
                             },
                         }
                     },
+                }
+            }
+
+            for value in self.flattened_values.values() {
+                let Some(value) = resolve_json_value(value, &event_ref) else {
+                    continue;
+                };
+
+                match value {
+                    MaybeCached::Serde(value) => {
+                        let map = value.as_object().unwrap();
+                        if !map.is_empty() {
+                            if serialized_anything && !serialized_anything_serde {
+                                writer.inner_mut().push(',');
+                            }
+                            serialized_anything = true;
+                            serialized_anything_serde = true;
+                            for (key, value) in map {
+                                serializer.serialize_entry(key, value)?;
+                            }
+                        }
+                    },
+                    MaybeCached::Cached(_) | MaybeCached::Raw(_) => todo!(),
                 }
             }
 

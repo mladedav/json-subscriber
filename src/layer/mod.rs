@@ -41,17 +41,22 @@ use crate::{
 pub struct JsonLayer<S: for<'lookup> LookupSpan<'lookup> = Registry, W = fn() -> io::Stdout> {
     make_writer: W,
     log_internal_errors: bool,
-    schema: BTreeMap<SchemaKey, JsonValue<S>>,
+    keyed_values: BTreeMap<SchemaKey, JsonValue<S>>,
+    flattened_values: BTreeMap<FlatSchemaKey, JsonValue<S>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum SchemaKey {
     Static(Cow<'static, str>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum FlatSchemaKey {
     Uuid(Uuid),
     FlattenedEvent,
 }
 
-impl SchemaKey {
+impl FlatSchemaKey {
     fn new_uuid() -> Self {
         Self::Uuid(uuid::Uuid::new_v4())
     }
@@ -213,7 +218,8 @@ where
         JsonLayer::<S, W> {
             make_writer,
             log_internal_errors: false,
-            schema: BTreeMap::new(),
+            keyed_values: BTreeMap::new(),
+            flattened_values: BTreeMap::new(),
         }
     }
 }
@@ -244,7 +250,8 @@ where
         JsonLayer {
             make_writer,
             log_internal_errors: self.log_internal_errors,
-            schema: self.schema,
+            keyed_values: self.keyed_values,
+            flattened_values: self.flattened_values,
         }
     }
 
@@ -306,7 +313,8 @@ where
         JsonLayer {
             make_writer: TestWriter::default(),
             log_internal_errors: self.log_internal_errors,
-            schema: self.schema,
+            keyed_values: self.keyed_values,
+            flattened_values: self.flattened_values,
         }
     }
 
@@ -350,7 +358,8 @@ where
         JsonLayer {
             make_writer: f(self.make_writer),
             log_internal_errors: self.log_internal_errors,
-            schema: self.schema,
+            keyed_values: self.keyed_values,
+            flattened_values: self.flattened_values,
         }
     }
 
@@ -373,7 +382,7 @@ where
     /// # fn get_hostname() -> &'static str { "localhost" }
     /// ```
     pub fn add_static_field(&mut self, key: impl Into<String>, value: serde_json::Value) {
-        self.schema
+        self.keyed_values
             .insert(SchemaKey::from(key.into()), JsonValue::Serde(value));
     }
 
@@ -395,11 +404,11 @@ where
     /// # tracing_subscriber::registry().with(layer);
     /// ```
     pub fn remove_field(&mut self, key: impl Into<String>) {
-        self.remove_field_inner(&SchemaKey::from(key.into()));
+        self.keyed_values.remove(&SchemaKey::from(key.into()));
     }
 
-    pub(crate) fn remove_field_inner(&mut self, key: &SchemaKey) {
-        self.schema.remove(key);
+    pub(crate) fn remove_flattened_field(&mut self, key: &FlatSchemaKey) {
+        self.flattened_values.remove(key);
     }
 
     pub fn add_dynamic_field<Fun, Res>(&mut self, key: impl Into<String>, mapper: Fun)
@@ -407,7 +416,7 @@ where
         for<'a> Fun: Fn(&'a Event<'_>, &Context<'_, S>) -> Option<Res> + Send + Sync + 'a,
         Res: serde::Serialize,
     {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromEvent(Box::new(move |event| {
                 serde_json::to_value(mapper(event.event(), event.context())).ok()
@@ -420,8 +429,8 @@ where
         for<'a> Fun: Fn(&'a Event<'_>, &Context<'_, S>) -> Res + Send + Sync + 'a,
         Res: IntoIterator<Item = (String, serde_json::Value)>,
     {
-        self.schema.insert(
-            SchemaKey::new_uuid(),
+        self.flattened_values.insert(
+            FlatSchemaKey::new_uuid(),
             JsonValue::DynamicFromEvent(Box::new(move |event| {
                 serde_json::to_value(
                     mapper(event.event(), event.context())
@@ -438,7 +447,7 @@ where
         for<'a> Fun: Fn(&'a SpanRef<'_, S>) -> Option<Res> + Send + Sync + 'a,
         Res: serde::Serialize,
     {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(move |span| {
                 serde_json::to_value(mapper(span)).ok()
@@ -545,7 +554,7 @@ where
         for<'a> Fun: Fn(&'a Ext) -> Option<&'a Res> + Send + Sync + 'a,
         Res: serde::Serialize,
     {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(move |span| {
                 let extensions = span.extensions();
@@ -608,7 +617,7 @@ where
         for<'a> Fun: Fn(&'a Ext) -> Option<Res> + Send + Sync + 'a,
         Res: serde::Serialize,
     {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(move |span| {
                 let extensions = span.extensions();
@@ -625,26 +634,29 @@ where
     /// clash with other defined fields. If they clash, invalid JSON with multiple fields with the
     /// same key may be generated.
     pub fn with_event(&mut self, key: impl Into<String>) -> &mut Self {
-        self.with_event_inner(SchemaKey::from(key.into()))
-    }
-
-    pub fn with_flattened_event(&mut self) -> &mut Self {
-        self.with_event_inner(SchemaKey::FlattenedEvent)
-    }
-
-    fn with_event_inner(&mut self, key: SchemaKey) -> &mut Self {
-        self.schema.insert(
-            key,
+        self.keyed_values.insert(
+            SchemaKey::from(key.into()),
             JsonValue::DynamicFromEvent(Box::new(move |event| {
                 serde_json::to_value(event.field_map()).ok()
             })),
         );
         self
     }
+
+    pub fn with_flattened_event(&mut self) -> &mut Self {
+        self.flattened_values.insert(
+            FlatSchemaKey::FlattenedEvent,
+            JsonValue::DynamicFromEvent(Box::new(move |event| {
+                serde_json::to_value(event.field_map()).ok()
+            })),
+        );
+        self
+    }
+
     /// Sets whether or not the log line will include the current span in formatted events. If set
     /// to true, it will be printed with the key `span`.
     pub fn with_current_span(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicCachedFromSpan(Box::new(move |span| {
                 span.extensions()
@@ -658,7 +670,7 @@ where
     /// Sets whether or not the formatter will include a list (from root to leaf) of all currently
     /// entered spans in formatted events. If set to true, it will be printed with the key `spans`.
     pub fn with_span_list(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicCachedFromSpan(Box::new(|span| {
                 Some(Cached::Array(
@@ -682,7 +694,7 @@ where
     ///
     /// This overrides any previous calls to [`with_span_list`](Self::with_span_list).
     pub(crate) fn with_flattened_span_fields(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(|span| {
                 let fields =
@@ -720,7 +732,7 @@ where
         key: impl Into<String>,
         timer: T,
     ) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromEvent(Box::new(move |_| {
                 let mut timestamp = String::with_capacity(32);
@@ -733,7 +745,7 @@ where
 
     /// Sets whether or not an event's target is displayed. It will use the `target` key if so.
     pub fn with_target(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
                 write_escaped(writer, event.metadata().target())
@@ -748,7 +760,7 @@ where
     ///
     /// [file]: tracing_core::Metadata::file
     pub fn with_file(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
                 event
@@ -765,7 +777,7 @@ where
     ///
     /// [line]: tracing_core::Metadata::line
     pub fn with_line_number(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
                 event
@@ -779,7 +791,7 @@ where
 
     /// Sets whether or not an event's level is displayed. It will use the `level` key if so.
     pub fn with_level(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
                 write_escaped(writer, event.metadata().level().as_str())
@@ -793,7 +805,7 @@ where
     ///
     /// [name]: std::thread#naming-threads
     pub fn with_thread_names(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
                 std::thread::current()
@@ -809,7 +821,7 @@ where
     ///
     /// [thread ID]: std::thread::ThreadId
     pub fn with_thread_ids(&mut self, key: impl Into<String>) -> &mut Self {
-        self.schema.insert(
+        self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
                 use std::fmt::Write;
@@ -834,7 +846,7 @@ where
         use tracing_opentelemetry::OtelData;
 
         if display_opentelemetry_ids {
-            self.schema.insert(
+            self.keyed_values.insert(
                 SchemaKey::from("openTelemetry"),
                 JsonValue::DynamicFromSpan(Box::new(|span| {
                     span.extensions().get::<OtelData>().and_then(|otel_data| {
@@ -855,7 +867,7 @@ where
                 })),
             );
         } else {
-            self.schema.remove(&SchemaKey::from("openTelemetry"));
+            self.keyed_values.remove(&SchemaKey::from("openTelemetry"));
         }
 
         self
