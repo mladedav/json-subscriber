@@ -443,7 +443,7 @@ where
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromEvent(Box::new(move |event| {
-                serde_json::to_value(mapper(event.event(), event.context())).ok()
+                serde_json::to_value(mapper(event.event(), event.context())?).ok()
             })),
         );
     }
@@ -527,7 +527,7 @@ where
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(move |span| {
-                serde_json::to_value(mapper(span)).ok()
+                serde_json::to_value(mapper(span)?).ok()
             })),
         );
     }
