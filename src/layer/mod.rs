@@ -54,6 +54,8 @@ pub(crate) enum SchemaKey {
 pub(crate) enum FlatSchemaKey {
     Uuid(Uuid),
     FlattenedEvent,
+    FlattenedCurrentSpan,
+    FlattenedSpanList,
 }
 
 impl FlatSchemaKey {
@@ -710,6 +712,62 @@ where
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromEvent(Box::new(move |event| {
                 serde_json::to_value(event.field_map()).ok()
+            })),
+        );
+        self
+    }
+
+    /// Print all current span fields, each as its own top level member of the JSON.
+    ///
+    /// It is the user's responsibility to make sure that the field names will not clash with other
+    /// defined members of the output JSON. If they clash, invalid JSON with multiple fields with
+    /// the same key may be generated.
+    ///
+    /// It's therefore preferable to use [`with_event`](Self::with_event) instead.
+    pub fn with_top_level_flattened_current_span(&mut self) -> &mut Self {
+        self.flattened_values.insert(
+            FlatSchemaKey::FlattenedCurrentSpan,
+            JsonValue::DynamicCachedFromSpan(Box::new(move |span| {
+                span.extensions()
+                    .get::<JsonFields>()
+                    .map(|fields| Cached::Raw(fields.serialized.clone()))
+            })),
+        );
+        self
+    }
+
+    /// Print all parent spans' fields, each as its own top level member of the JSON.
+    ///
+    /// If multiple spans define the same field, the one furthest from the root span will be kept.
+    ///
+    /// It is the user's responsibility to make sure that the field names will not clash with other
+    /// defined members of the output JSON. If they clash, invalid JSON with multiple fields with
+    /// the same key may be generated.
+    ///
+    /// It's therefore preferable to use [`with_event`](Self::with_event) instead.
+    pub fn with_top_level_flattened_span_list(&mut self) -> &mut Self {
+        self.flattened_values.insert(
+            FlatSchemaKey::FlattenedSpanList,
+            JsonValue::DynamicFromSpan(Box::new(|span| {
+                let fields =
+                    span.scope()
+                        .from_root()
+                        .fold(BTreeMap::new(), |mut accumulator, span| {
+                            let extensions = span.extensions();
+                            let Some(fields) = extensions.get::<JsonFields>() else {
+                                return accumulator;
+                            };
+                            accumulator.extend(
+                                fields
+                                    .inner
+                                    .fields
+                                    .iter()
+                                    .map(|(key, value)| (*key, value.clone())),
+                            );
+                            accumulator
+                        });
+
+                serde_json::to_value(fields).ok()
             })),
         );
         self

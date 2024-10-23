@@ -334,6 +334,50 @@ where
         self
     }
 
+    /// Sets the JSON subscriber being built to flatten the current span's fields to the top level
+    /// of the output.
+    ///
+    /// It is the user's responsibility to make sure that the span field names do not clash with any
+    /// other fields logged on the span. This should not be used with
+    /// [`Self::flatten_span_list_on_top_level`] as that will log the current span's fields twice
+    /// which would make the resulting JSON invalid.
+    #[must_use]
+    pub fn flatten_current_span_on_top_level(mut self, flatten_span: bool) -> Self {
+        if flatten_span {
+            self.inner.remove_field(CURRENT_SPAN);
+            self.inner.with_top_level_flattened_current_span();
+        } else {
+            self.inner
+                .remove_flattened_field(&FlatSchemaKey::FlattenedCurrentSpan);
+            self.inner.with_current_span(CURRENT_SPAN);
+        }
+        self
+    }
+
+    /// Sets the JSON subscriber being built to flatten all parent spans' fields to the top level of
+    /// the output. Values of fields in spans closer to the event will take precedence over spans
+    /// closer to the root span.
+    ///
+    /// If you're looking to have all parent spans' fields flattened but do not need them at the top
+    /// level, use [`Self::with_flat_span_list`] instead.
+    ///
+    /// It is the user's responsibility to make sure that the span field names do not clash with any
+    /// other fields logged on the span. This should not be used with
+    /// [`Self::flatten_current_span_on_top_level`] as that will log the current span's fields twice
+    /// which would make the resulting JSON invalid.
+    #[must_use]
+    pub fn flatten_span_list_on_top_level(mut self, flatten_span_list: bool) -> Self {
+        if flatten_span_list {
+            self.inner.remove_field(SPAN_LIST);
+            self.inner.with_top_level_flattened_span_list();
+        } else {
+            self.inner
+                .remove_flattened_field(&FlatSchemaKey::FlattenedSpanList);
+            self.inner.with_span_list(SPAN_LIST);
+        }
+        self
+    }
+
     /// Sets the JSON subscriber being built to flatten event metadata.
     #[must_use]
     pub fn flatten_event(mut self, flatten_event: bool) -> Self {
@@ -526,6 +570,7 @@ mod tests {
         assert_eq!(
             expected,
             &serde_json::from_str::<serde_json::Value>(&actual).unwrap(),
+            "expected != actual"
         );
     }
 
@@ -634,7 +679,7 @@ mod tests {
     }
 
     #[test]
-    fn flatten_spans() {
+    fn flat_span_list() {
         let expected = json!(
             {
                 "timestamp": "fake time",
@@ -655,6 +700,69 @@ mod tests {
         let layer = Layer::default()
             .with_flat_span_list(true)
             .with_current_span(false);
+
+        test_json(&expected, layer, || {
+            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let _guard = span.enter();
+            let child =
+                tracing::info_span!("child_span", number = 100, text = tracing::field::Empty);
+            let _guard = child.clone().entered();
+            child.record("text", "text");
+            tracing::info!("some json test");
+        });
+    }
+
+    #[test]
+    fn top_level_flatten_current_span() {
+        let expected = json!(
+            {
+                "timestamp": "fake time",
+                "level": "INFO",
+                "name": "child_span",
+                "number": 100,
+                "text": "text",
+                "fields": {
+                    "message": "some json test",
+                },
+            }
+        );
+
+        let layer = Layer::default()
+            .with_target(false)
+            .with_span_list(false)
+            .flatten_current_span_on_top_level(true);
+
+        test_json(&expected, layer, || {
+            let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);
+            let _guard = span.enter();
+            let child =
+                tracing::info_span!("child_span", number = 100, text = tracing::field::Empty);
+            let _guard = child.clone().entered();
+            child.record("text", "text");
+            tracing::info!("some json test");
+        });
+    }
+
+    #[test]
+    fn top_level_flatten_span_list() {
+        let expected = json!(
+            {
+                "timestamp": "fake time",
+                "level": "INFO",
+                "name": "child_span",
+                "answer": 42,
+                "number": 100,
+                "text": "text",
+                "fields": {
+                    "message": "some json test",
+                },
+            }
+        );
+
+        let layer = Layer::default()
+            .with_target(false)
+            .with_current_span(false)
+            .flatten_span_list_on_top_level(true);
 
         test_json(&expected, layer, || {
             let span = tracing::span!(tracing::Level::INFO, "json_span", answer = 42, number = 3);

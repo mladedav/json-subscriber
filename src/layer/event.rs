@@ -194,7 +194,68 @@ where
                             }
                         }
                     },
-                    MaybeCached::Cached(_) | MaybeCached::Raw(_) => todo!(),
+                    MaybeCached::Cached(Cached::Raw(raw)) => {
+                        debug_assert!(
+                            serde_json::to_value(&*raw).is_ok(),
+                            "[json-subscriber] provided cached value is not valid json: {raw}",
+                        );
+                        let Some(object_contents) = raw
+                            .as_ref()
+                            .trim()
+                            .strip_prefix('{')
+                            .and_then(|str| str.strip_suffix('}'))
+                        else {
+                            eprintln!(
+                                "[json-subscriber] provided cached value cannot be flattened \
+                                 because it is not an object: {raw}"
+                            );
+                            continue;
+                        };
+                        let mut writer = writer.inner_mut();
+                        if serialized_anything {
+                            writer.push(',');
+                        }
+                        serialized_anything = true;
+                        writer.push_str(object_contents);
+                    },
+                    MaybeCached::Cached(Cached::Array(_arr)) => {
+                        todo!();
+                    },
+                    MaybeCached::Raw(raw_fun) => {
+                        let mut output = String::new();
+                        match raw_fun(&event_ref, &mut output) {
+                            Ok(()) => {
+                                debug_assert!(
+                                    serde_json::to_value(&output).is_ok(),
+                                    "[json-subscriber] raw value factory created invalid json: \
+                                     {output}",
+                                );
+                                let Some(object_contents) = output
+                                    .trim()
+                                    .strip_prefix('{')
+                                    .and_then(|str| str.strip_suffix('}'))
+                                else {
+                                    eprintln!(
+                                        "[json-subscriber] provided cached value cannot be \
+                                         flattened because it is not an object: {output}"
+                                    );
+                                    continue;
+                                };
+                                let mut writer = writer.inner_mut();
+                                if serialized_anything {
+                                    writer.push(',');
+                                }
+                                serialized_anything = true;
+                                writer.push_str(object_contents);
+                            },
+                            Err(error) => {
+                                eprintln!(
+                                    "[json-subscriber] unable to format raw value to string: \
+                                     {error}"
+                                );
+                            },
+                        }
+                    },
                 }
             }
 
