@@ -23,7 +23,7 @@ pub struct EventRef<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> {
     span: Option<SpanRef<'c, R>>,
 }
 
-impl<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> Deref for EventRef<'a, 'b, 'c, R> {
+impl<'a, R: for<'lookup> LookupSpan<'lookup>> Deref for EventRef<'a, '_, '_, R> {
     type Target = Event<'a>;
 
     fn deref(&self) -> &Self::Target {
@@ -31,7 +31,7 @@ impl<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> Deref for EventRef<'a, 'b,
     }
 }
 
-impl<'a, 'b, 'c, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'a, 'b, 'c, R> {
+impl<'c, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'_, '_, 'c, R> {
     /// Returns the span's name,
     #[allow(dead_code)]
     pub fn name(&self) -> &'static str {

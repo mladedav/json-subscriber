@@ -69,7 +69,7 @@ impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Layer<S> for AppIdLayer {
 
 struct AppIdVisitor<'a>(&'a mut Option<String>);
 
-impl<'a> Visit for AppIdVisitor<'a> {
+impl Visit for AppIdVisitor<'_> {
     fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
         if field.name() == "app_id" {
             *self.0 = Some(format!("{value:?}"));

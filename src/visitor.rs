@@ -16,7 +16,7 @@ impl<'a> JsonVisitor<'a> {
     }
 }
 
-impl<'a> field::Visit for JsonVisitor<'a> {
+impl field::Visit for JsonVisitor<'_> {
     /// Visit a double precision floating point value.
     fn record_f64(&mut self, field: &field::Field, value: f64) {
         let value = serde_json::Value::from(value);
