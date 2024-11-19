@@ -827,7 +827,7 @@ where
     /// Sets the formatter to include an object containing all parent spans' fields. If multiple
     /// ancestor spans recorded the same field, the span closer to the leaf span overrides the
     /// values of spans that are closer to the root spans.
-    pub(crate) fn with_flattened_span_fields(&mut self, key: impl Into<String>) -> &mut Self {
+    pub fn with_flattened_span_fields(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicFromSpan(Box::new(|span| {
