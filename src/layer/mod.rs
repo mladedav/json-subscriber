@@ -897,10 +897,10 @@ where
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
-                event
-                    .metadata()
-                    .file()
-                    .map_or(Ok(()), |file| write_escaped(writer, file))
+                match event.metadata().file() {
+                    Some(file) => write_escaped(writer, file),
+                    None => write!(writer, "null"),
+                }
             })),
         );
         self
@@ -914,10 +914,10 @@ where
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
-                event
-                    .metadata()
-                    .line()
-                    .map_or(Ok(()), |line| write!(writer, "{line}"))
+                match event.metadata().line() {
+                    Some(line) => write!(writer, "{line}"),
+                    None => write!(writer, "null"),
+                }
             })),
         );
         self
@@ -942,9 +942,10 @@ where
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
             JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
-                std::thread::current()
-                    .name()
-                    .map_or(Ok(()), |name| write_escaped(writer, name))
+                match std::thread::current().name() {
+                    Some(name) => write_escaped(writer, name),
+                    None => write!(writer, "null"),
+                }
             })),
         );
         self
