@@ -13,7 +13,7 @@ impl io::Write for &Cursor<'_> {
 
         inner.push_str(s);
 
-        Ok(s.as_bytes().len())
+        Ok(s.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
