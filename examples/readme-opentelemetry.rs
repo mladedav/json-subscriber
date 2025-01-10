@@ -5,15 +5,11 @@ fn main() {
     use opentelemetry::trace::TracerProvider;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-    let exporter = opentelemetry_stdout::SpanExporter::builder()
-        .with_writer(std::io::sink())
-        .build();
+    let exporter = opentelemetry_stdout::SpanExporter::default();
     let builder =
         opentelemetry_sdk::trace::TracerProvider::builder().with_simple_exporter(exporter);
     let provider = builder.build();
-    let tracer = provider
-        .tracer_builder("opentelemetry-stdout-exporter")
-        .build();
+    let tracer = provider.tracer("opentelemetry-stdout-exporter");
     opentelemetry::global::set_tracer_provider(provider);
 
     let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
