@@ -124,6 +124,6 @@ impl field::Visit for JsonVisitor<'_> {
                     .fields
                     .insert(name, serde_json::Value::from(format!("{value:?}")));
             },
-        };
+        }
     }
 }
