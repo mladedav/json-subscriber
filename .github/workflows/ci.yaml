@@ -102,6 +102,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v1
         with:
           command: check ${{ matrix.checks }}
+          arguments: --features tracing-log,env-filter
           manifest-path: Cargo.toml
 
   typos:
