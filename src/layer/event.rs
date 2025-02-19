@@ -199,6 +199,12 @@ where
                             serde_json::to_value(&*raw).is_ok(),
                             "[json-subscriber] provided cached value is not valid json: {raw}",
                         );
+                        if !raw.contains('\"') {
+                            // If the raw string contains at least a single quote, there is at least
+                            // one field in the object. Otherwise it is empty and we just skip it.
+                            // Assuming it's a valid JSON of course.
+                            continue;
+                        }
                         let Some(object_contents) = raw
                             .as_ref()
                             .trim()
