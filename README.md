@@ -128,7 +128,7 @@ This crate strives to be faster than `tracing_subscriber`. See [benchmarks](docs
 
 ## Supported Rust Versions
 
-`json-subscriber` is built against the latest stable release. The minimum supported version is 1.65.
+`json-subscriber` is built against the latest stable release. The minimum supported version is 1.75.
 The current version is not guaranteed to build on Rust versions earlier than the minimum supported
 version.
 
