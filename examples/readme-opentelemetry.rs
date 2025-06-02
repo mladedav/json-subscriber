@@ -1,22 +1,21 @@
 mod yak_shave;
 
-#[cfg(feature = "tracing-opentelemetry-0-29")]
+#[cfg(feature = "tracing-opentelemetry-0-31")]
 fn main() {
-    use opentelemetry_0_28::trace::TracerProvider;
+    use opentelemetry::trace::TracerProvider;
+    use opentelemetry_0_30 as opentelemetry;
+    use opentelemetry_sdk;
+    use tracing_opentelemetry_0_31 as tracing_opentelemetry;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-    let exporter = opentelemetry_stdout::SpanExporter::builder()
-        .with_writer(std::io::sink())
-        .build();
+    let exporter = opentelemetry_stdout::SpanExporter::default();
     let builder =
         opentelemetry_sdk::trace::SdkTracerProvider::builder().with_simple_exporter(exporter);
     let provider = builder.build();
-    let tracer = provider
-        .tracer_builder("opentelemetry-stdout-exporter")
-        .build();
-    opentelemetry_0_28::global::set_tracer_provider(provider);
+    let tracer = provider.tracer("opentelemetry-stdout-exporter");
+    opentelemetry::global::set_tracer_provider(provider);
 
-    let opentelemetry = tracing_opentelemetry_0_29::layer().with_tracer(tracer);
+    let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
     let json = json_subscriber::layer()
         .with_current_span(false)
         .with_span_list(false)
@@ -38,7 +37,7 @@ fn main() {
     );
 }
 
-#[cfg(not(feature = "tracing-opentelemetry-0-29"))]
+#[cfg(not(feature = "tracing-opentelemetry-0-31"))]
 fn main() {
-    panic!("This example needs the `tracing-opentelemetry-0-29` feature.");
+    panic!("This example needs the `tracing-opentelemetry-0-31` feature.");
 }

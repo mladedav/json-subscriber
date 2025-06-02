@@ -67,8 +67,9 @@ thiserror = "1.0.31"
 tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
-opentelemetry_sdk = { version = "0.28", default-features = false }
-opentelemetry-stdout = "0.28"
+# Used in an example. Should be kept in sync with the latest opentelemetry feature.
+opentelemetry_sdk = { version = "0.30", default-features = false }
+opentelemetry-stdout = "0.30"
 
 [package.metadata.docs.rs]
 all-features = true

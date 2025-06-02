@@ -280,12 +280,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glob"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
-
-[[package]]
 name = "half"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -350,7 +344,7 @@ dependencies = [
  "opentelemetry 0.29.1",
  "opentelemetry 0.30.0",
  "opentelemetry-stdout",
- "opentelemetry_sdk 0.28.0",
+ "opentelemetry_sdk 0.30.0",
  "serde",
  "serde_json",
  "snafu",
@@ -519,17 +513,13 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-stdout"
-version = "0.28.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5eb0e5a5132e4b80bf037a78e3e12c8402535199f5de490d0c38f7eac71bc831"
+checksum = "447191061af41c3943e082ea359ab8b64ff27d6d34d30d327df309ddef1eef6f"
 dependencies = [
- "async-trait",
  "chrono",
- "futures-util",
- "opentelemetry 0.28.0",
- "opentelemetry_sdk 0.28.0",
- "serde",
- "thiserror 2.0.11",
+ "opentelemetry 0.30.0",
+ "opentelemetry_sdk 0.30.0",
 ]
 
 [[package]]
@@ -570,17 +560,13 @@ version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84dfad6042089c7fc1f6118b7040dc2eb4ab520abbf410b79dc481032af39570"
 dependencies = [
- "async-trait",
  "futures-channel",
  "futures-executor",
  "futures-util",
- "glob",
  "opentelemetry 0.28.0",
  "percent-encoding",
  "rand 0.8.5",
- "serde_json",
  "thiserror 2.0.11",
- "tracing",
 ]
 
 [[package]]
@@ -610,6 +596,7 @@ dependencies = [
  "opentelemetry 0.30.0",
  "percent-encoding",
  "rand 0.9.1",
+ "serde_json",
  "thiserror 2.0.11",
 ]
 
