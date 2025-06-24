@@ -723,7 +723,7 @@ where
     /// defined members of the output JSON. If they clash, invalid JSON with multiple fields with
     /// the same key may be generated.
     ///
-    /// It's therefore preferable to use [`with_event`](Self::with_event) instead.
+    /// It's therefore preferable to use [`with_current_span`](Self::with_current_span) instead.
     pub fn with_top_level_flattened_current_span(&mut self) -> &mut Self {
         self.flattened_values.insert(
             FlatSchemaKey::FlattenedCurrentSpan,
@@ -744,7 +744,7 @@ where
     /// defined members of the output JSON. If they clash, invalid JSON with multiple fields with
     /// the same key may be generated.
     ///
-    /// It's therefore preferable to use [`with_event`](Self::with_event) instead.
+    /// It's therefore preferable to use [`with_span_list`](Self::with_span_list) instead.
     pub fn with_top_level_flattened_span_list(&mut self) -> &mut Self {
         self.flattened_values.insert(
             FlatSchemaKey::FlattenedSpanList,
