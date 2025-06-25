@@ -30,6 +30,7 @@ use uuid::Uuid;
 use crate::{
     cached::Cached,
     fields::{JsonFields, JsonFieldsInner},
+    serde::RenamedFields,
     visitor::JsonVisitor,
 };
 
@@ -790,6 +791,21 @@ where
         self
     }
 
+    pub fn with_flattened_event_with_renames<F, T>(&mut self, renames: F, context: T) -> &mut Self
+    where
+        F: for<'a> Fn(&'a str, &'a T) -> &'a str + Send + Sync + 'static + Clone,
+        T: Clone + Send + Sync + 'static,
+    {
+        self.flattened_values.insert(
+            FlatSchemaKey::FlattenedEvent,
+            JsonValue::DynamicFromEvent(Box::new(move |event| {
+                serde_json::to_value(RenamedFields::new(event.event(), renames.clone(), &context))
+                    .ok()
+            })),
+        );
+        self
+    }
+
     /// Sets whether or not the log line will include the current span in formatted events.
     pub fn with_current_span(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
@@ -1158,6 +1174,8 @@ fn write_escaped(writer: &mut dyn fmt::Write, value: &str) -> Result<(), fmt::Er
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use serde_json::json;
     use tracing::subscriber::with_default;
     use tracing_subscriber::{registry, Layer, Registry};
@@ -1212,6 +1230,39 @@ mod tests {
 
         test_json(&expected, layer, || {
             tracing::info!(does = "not matter", "whatever");
+        });
+    }
+
+    #[test]
+    fn flattened_event_with_renames() {
+        let renames = HashMap::from([
+            ("message".to_owned(), "msg".to_owned()),
+            ("msg".to_owned(), "message".to_owned()),
+            ("same".to_owned(), "same".to_owned()),
+            ("different".to_owned(), "gone".to_owned()),
+        ]);
+        let mut layer = JsonLayer::stdout();
+        layer.with_flattened_event_with_renames(
+            move |name, map| map.get(name).unwrap().as_str(),
+            renames,
+        );
+
+        let expected = json!({
+            "message": "msg",
+            "msg": "message",
+            "same": "same",
+            "gone": "different",
+            "another": "another",
+        });
+
+        test_json(&expected, layer, || {
+            tracing::info!(
+                msg = "msg",
+                same = "same",
+                different = "different",
+                another = "another",
+                "message"
+            );
         });
     }
 }
