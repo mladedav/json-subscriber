@@ -1,3 +1,6 @@
+# https://rust-lang.github.io/rfcs/3516-public-private-dependencies.html
+cargo-features = ["public-dependency"]
+
 [package]
 name = "json-subscriber"
 description = "Customizable layer and subscriber for `tracing` that emits logs in JSON"
@@ -28,20 +31,19 @@ tracing-opentelemetry-0-29 = [
 __private_docs = ["tracing-subscriber/time", "tracing-subscriber/local-time"]
 
 [dependencies]
-serde = "1.0.202"
-serde_json = "1.0.117"
-uuid = { version = "1.10.0", features = ["v4"] }
+# Public dependencies
+serde = { version = "1.0.202", public = true, default-features = false, features = ["std"] }
+serde_json = { version = "1.0.117", public = true, default-features = false, features = ["std"] }
+tracing-core = { version = "0.1.32", public = true, default-features = false }
+tracing = { version = "0.1.40", public = true, default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3.18", public = true, default-features = false, features = ["std", "registry", "fmt"] }
 
-tracing = { version = "0.1.40", default-features = false, features = ["std"] }
-tracing-core = { version = "0.1.32", default-features = false }
+# Private dependencies
 tracing-log = { version = "0.2.0", default-features = false, optional = true }
 tracing-serde = { version = "0.2.0", default-features = false }
-tracing-subscriber = { version = "0.3.18", default-features = false, features = [
-    "std",
-    "registry",
-    "fmt",
-] }
+uuid = { version = "1.10.0", features = ["v4"] }
 
+# Optional dependencies
 # OpenTelemetry
 tracing-opentelemetry-0-25 = { package = "tracing-opentelemetry", version = "0.25.0", default-features = false, optional = true }
 opentelemetry-0-24 = { package = "opentelemetry", version = "0.24.0", default-features = false, optional = true }
