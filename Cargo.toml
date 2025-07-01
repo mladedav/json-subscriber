@@ -23,6 +23,20 @@ tracing-opentelemetry-0-29 = [
     "dep:tracing-opentelemetry-0-29",
     "dep:opentelemetry-0-28",
 ]
+tracing-opentelemetry-0-30 = [
+    "dep:tracing-opentelemetry-0-30",
+    "dep:opentelemetry-0-29",
+]
+tracing-opentelemetry-0-31 = [
+    "dep:tracing-opentelemetry-0-31",
+    "dep:opentelemetry-0-30",
+]
+
+# TODO Remove this for the next breaking release.
+# This is the price I have to pay to the gods of semantic versioning for failing to notice I created
+# unintended implicit features.
+opentelemetry-0-29 = ["dep:opentelemetry-0-29"]
+opentelemetry-0-30 = ["dep:opentelemetry-0-30"]
 
 # Required for intra-doc links to resolve correctly
 __private_docs = ["tracing-subscriber/time", "tracing-subscriber/local-time"]
