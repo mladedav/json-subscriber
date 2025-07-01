@@ -23,6 +23,20 @@ tracing-opentelemetry-0-29 = [
     "dep:tracing-opentelemetry-0-29",
     "dep:opentelemetry-0-28",
 ]
+tracing-opentelemetry-0-30 = [
+    "dep:tracing-opentelemetry-0-30",
+    "dep:opentelemetry-0-29",
+]
+tracing-opentelemetry-0-31 = [
+    "dep:tracing-opentelemetry-0-31",
+    "dep:opentelemetry-0-30",
+]
+
+# TODO Remove this for the next breaking release.
+# This is the price I have to pay to the gods of semantic versioning for failing to notice I created
+# unintended implicit features.
+opentelemetry-0-29 = ["dep:opentelemetry-0-29"]
+opentelemetry-0-30 = ["dep:opentelemetry-0-30"]
 
 # Required for intra-doc links to resolve correctly
 __private_docs = ["tracing-subscriber/time", "tracing-subscriber/local-time"]
@@ -50,7 +64,7 @@ opentelemetry-0-27 = { package = "opentelemetry", version = "0.27.0", default-fe
 tracing-opentelemetry-0-29 = { package = "tracing-opentelemetry", version = "0.29.0", default-features = false, optional = true }
 opentelemetry-0-28 = { package = "opentelemetry", version = "0.28.0", default-features = false, optional = true }
 tracing-opentelemetry-0-30 = { package = "tracing-opentelemetry", version = "0.30.0", default-features = false, optional = true }
-opentelemetry-0-29 = { package = "opentelemetry", version = "0.29.0", default-features = false, optional = true }
+opentelemetry-0-29 = { package = "opentelemetry", version = "0.29.0", default-features = false, features = ["futures"], optional = true }
 tracing-opentelemetry-0-31 = { package = "tracing-opentelemetry", version = "0.31.0", default-features = false, optional = true }
 opentelemetry-0-30 = { package = "opentelemetry", version = "0.30.0", default-features = false, optional = true }
 
