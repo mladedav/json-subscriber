@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Other
+
+- use trusted publishing to crates.io
+
 ## [0.2.6](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.2.5...json-subscriber-v0.2.6) - 2025-07-01
 
 ### Fixed

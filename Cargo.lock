@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "json-subscriber"
-version = "0.2.6"
+version = "0.2.7-alpha.1"
 dependencies = [
  "async-trait",
  "criterion",
