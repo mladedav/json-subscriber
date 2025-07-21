@@ -4,3 +4,4 @@ pr_labels = ["release"]
 pr_draft = true
 pr_branch_prefix = "release-plz/"
 git_tag_name = "{{ package }}-v{{ version }}"
+git_release_type = "auto"
