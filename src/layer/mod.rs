@@ -1003,14 +1003,14 @@ where
                     let mut ids: Option<serde_json::Value> = None;
 
                     macro_rules! otel_extraction {
-                        ($feature:literal, $otel_data:ty, $otel_trace_pkg:path) => {
+                        ($feature:literal, $tracing_otel_crate:ident, $otel_crate:ident) => {
                             #[cfg(feature = $feature)]
                             {
-                                use $otel_trace_pkg::{TraceContextExt, TraceId};
-
+                                use $otel_crate::trace::{TraceContextExt, TraceId};
                                 ids = ids.or_else(|| {
-                                    span.extensions().get::<$otel_data>().and_then(
-                                        |otel_data| {
+                                    span.extensions()
+                                        .get::<$tracing_otel_crate::OtelData>()
+                                        .and_then(|otel_data| {
                                             // We should use the parent first if available because
                                             // we can create a new trace and then change the
                                             // parent. In that case the value in the builder is not
@@ -1024,13 +1024,11 @@ where
                                                 trace_id = otel_data.builder.trace_id?;
                                             }
                                             let span_id = otel_data.builder.span_id?;
-
                                             Some(serde_json::json!({
                                                 "traceId": trace_id.to_string(),
                                                 "spanId": span_id.to_string(),
                                             }))
-                                        },
-                                    )
+                                        })
                                 });
                             }
                         };
@@ -1038,28 +1036,28 @@ where
 
                     otel_extraction!(
                         "tracing-opentelemetry-0-31",
-                        tracing_opentelemetry_0_31::OtelData,
-                        opentelemetry_0_30::trace
+                        tracing_opentelemetry_0_31,
+                        opentelemetry_0_30
                     );
                     otel_extraction!(
                         "tracing-opentelemetry-0-30",
-                        tracing_opentelemetry_0_30::OtelData,
-                        opentelemetry_0_29::trace
+                        tracing_opentelemetry_0_30,
+                        opentelemetry_0_29
                     );
                     otel_extraction!(
                         "tracing-opentelemetry-0-29",
-                        tracing_opentelemetry_0_29::OtelData,
-                        opentelemetry_0_28::trace
+                        tracing_opentelemetry_0_29,
+                        opentelemetry_0_28
                     );
                     otel_extraction!(
                         "tracing-opentelemetry-0-28",
-                        tracing_opentelemetry_0_28::OtelData,
-                        opentelemetry_0_27::trace
+                        tracing_opentelemetry_0_28,
+                        opentelemetry_0_27
                     );
                     otel_extraction!(
                         "opentelemetry",
-                        tracing_opentelemetry_0_25::OtelData,
-                        opentelemetry_0_24::trace
+                        tracing_opentelemetry_0_25,
+                        opentelemetry_0_24
                     );
 
                     ids
