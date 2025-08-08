@@ -1001,131 +1001,64 @@ where
                 SchemaKey::from("openTelemetry"),
                 JsonValue::DynamicFromSpan(Box::new(|span| {
                     let mut ids: Option<serde_json::Value> = None;
-                    #[cfg(feature = "tracing-opentelemetry-0-31")]
-                    {
-                        use opentelemetry_0_30::trace::{TraceContextExt, TraceId};
 
-                        ids = ids.or_else(|| {
-                            span.extensions()
-                                .get::<tracing_opentelemetry_0_31::OtelData>()
-                                .and_then(|otel_data| {
-                                    // We should use the parent first if available because we can
-                                    // create a new trace and then change the parent. In that case
-                                    // the value in the builder is not updated.
-                                    let mut trace_id =
-                                        otel_data.parent_cx.span().span_context().trace_id();
-                                    if trace_id == TraceId::INVALID {
-                                        trace_id = otel_data.builder.trace_id?;
-                                    }
-                                    let span_id = otel_data.builder.span_id?;
-
-                                    Some(serde_json::json!({
-                                        "traceId": trace_id.to_string(),
-                                        "spanId": span_id.to_string(),
-                                    }))
-                                })
-                        });
+                    macro_rules! otel_extraction {
+                        ($feature:literal, $tracing_otel_crate:ident, $otel_crate:ident) => {
+                            #[cfg(feature = $feature)]
+                            {
+                                use $otel_crate::trace::{TraceContextExt, TraceId};
+                                ids = ids.or_else(|| {
+                                    span.extensions()
+                                        .get::<$tracing_otel_crate::OtelData>()
+                                        .and_then(|otel_data| {
+                                            // We should use the parent first if available because
+                                            // we can create a new trace and then change the
+                                            // parent. In that case the value in the builder is not
+                                            // updated.
+                                            let mut trace_id = otel_data
+                                                .parent_cx
+                                                .span()
+                                                .span_context()
+                                                .trace_id();
+                                            if trace_id == TraceId::INVALID {
+                                                trace_id = otel_data.builder.trace_id?;
+                                            }
+                                            let span_id = otel_data.builder.span_id?;
+                                            Some(serde_json::json!({
+                                                "traceId": trace_id.to_string(),
+                                                "spanId": span_id.to_string(),
+                                            }))
+                                        })
+                                });
+                            }
+                        };
                     }
-                    #[cfg(feature = "tracing-opentelemetry-0-30")]
-                    {
-                        use opentelemetry_0_29::trace::{TraceContextExt, TraceId};
 
-                        ids = ids.or_else(|| {
-                            span.extensions()
-                                .get::<tracing_opentelemetry_0_30::OtelData>()
-                                .and_then(|otel_data| {
-                                    // We should use the parent first if available because we can
-                                    // create a new trace and then change the parent. In that case
-                                    // the value in the builder is not updated.
-                                    let mut trace_id =
-                                        otel_data.parent_cx.span().span_context().trace_id();
-                                    if trace_id == TraceId::INVALID {
-                                        trace_id = otel_data.builder.trace_id?;
-                                    }
-                                    let span_id = otel_data.builder.span_id?;
-
-                                    Some(serde_json::json!({
-                                        "traceId": trace_id.to_string(),
-                                        "spanId": span_id.to_string(),
-                                    }))
-                                })
-                        });
-                    }
-                    #[cfg(feature = "tracing-opentelemetry-0-29")]
-                    {
-                        use opentelemetry_0_28::trace::{TraceContextExt, TraceId};
-
-                        ids = ids.or_else(|| {
-                            span.extensions()
-                                .get::<tracing_opentelemetry_0_29::OtelData>()
-                                .and_then(|otel_data| {
-                                    // We should use the parent first if available because we can
-                                    // create a new trace and then change the parent. In that case
-                                    // the value in the builder is not updated.
-                                    let mut trace_id =
-                                        otel_data.parent_cx.span().span_context().trace_id();
-                                    if trace_id == TraceId::INVALID {
-                                        trace_id = otel_data.builder.trace_id?;
-                                    }
-                                    let span_id = otel_data.builder.span_id?;
-
-                                    Some(serde_json::json!({
-                                        "traceId": trace_id.to_string(),
-                                        "spanId": span_id.to_string(),
-                                    }))
-                                })
-                        });
-                    }
-                    #[cfg(feature = "tracing-opentelemetry-0-28")]
-                    {
-                        use opentelemetry_0_27::trace::{TraceContextExt, TraceId};
-
-                        ids = ids.or_else(|| {
-                            span.extensions()
-                                .get::<tracing_opentelemetry_0_28::OtelData>()
-                                .and_then(|otel_data| {
-                                    // We should use the parent first if available because we can
-                                    // create a new trace and then change the parent. In that case
-                                    // the value in the builder is not updated.
-                                    let mut trace_id =
-                                        otel_data.parent_cx.span().span_context().trace_id();
-                                    if trace_id == TraceId::INVALID {
-                                        trace_id = otel_data.builder.trace_id?;
-                                    }
-                                    let span_id = otel_data.builder.span_id?;
-
-                                    Some(serde_json::json!({
-                                        "traceId": trace_id.to_string(),
-                                        "spanId": span_id.to_string(),
-                                    }))
-                                })
-                        });
-                    }
-                    #[cfg(feature = "opentelemetry")]
-                    {
-                        use opentelemetry_0_24::trace::{TraceContextExt, TraceId};
-
-                        ids = ids.or_else(|| {
-                            span.extensions()
-                                .get::<tracing_opentelemetry_0_25::OtelData>()
-                                .and_then(|otel_data| {
-                                    // We should use the parent first if available because we can
-                                    // create a new trace and then change the parent. In that case
-                                    // the value in the builder is not updated.
-                                    let mut trace_id =
-                                        otel_data.parent_cx.span().span_context().trace_id();
-                                    if trace_id == TraceId::INVALID {
-                                        trace_id = otel_data.builder.trace_id?;
-                                    }
-                                    let span_id = otel_data.builder.span_id?;
-
-                                    Some(serde_json::json!({
-                                        "traceId": trace_id.to_string(),
-                                        "spanId": span_id.to_string(),
-                                    }))
-                                })
-                        });
-                    }
+                    otel_extraction!(
+                        "tracing-opentelemetry-0-31",
+                        tracing_opentelemetry_0_31,
+                        opentelemetry_0_30
+                    );
+                    otel_extraction!(
+                        "tracing-opentelemetry-0-30",
+                        tracing_opentelemetry_0_30,
+                        opentelemetry_0_29
+                    );
+                    otel_extraction!(
+                        "tracing-opentelemetry-0-29",
+                        tracing_opentelemetry_0_29,
+                        opentelemetry_0_28
+                    );
+                    otel_extraction!(
+                        "tracing-opentelemetry-0-28",
+                        tracing_opentelemetry_0_28,
+                        opentelemetry_0_27
+                    );
+                    otel_extraction!(
+                        "opentelemetry",
+                        tracing_opentelemetry_0_25,
+                        opentelemetry_0_24
+                    );
 
                     ids
                 })),
