@@ -1,0 +1,57 @@
+name: Benchmark
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  issue_comment:
+    types: [created, edited]
+
+# We use a specific version so that the results are not changed because of rustc updates.
+env:
+  RUSTC_VERSION: 1.89.0
+
+permissions:
+  # deployments permission to deploy GitHub pages website
+  deployments: write
+  # contents permission to update benchmark contents in gh-pages branch
+  contents: write
+  # allow posting comments to pull request
+  pull-requests: write
+
+jobs:
+  run-benchmark:
+    if: >
+      (contains(github.event.comment.html_url, '/pull/') && contains(github.event.comment.body, '/benchmark'))
+      || github.event_name == 'push'
+      || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Switch to correct PR
+      if: github.event_name == 'issue_comment'
+      run: gh pr checkout ${{ github.event.issue.number }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ env.RUSTC_VERSION }}
+    - uses: Swatinem/rust-cache@v2
+    - name: Get rustc version
+      id: rustc_version
+      run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
+    - name: Run benchmark
+      run: cargo +${{ env.RUSTC_VERSION }} bench --locked -- --output-format bencher | tee output.txt
+    - name: Store benchmark result
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        name: Rust Benchmark (${{ env.RUSTC_VERSION }})
+        tool: 'cargo'
+        output-file-path: output.txt
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        fail-on-alert: false
+        comment-always: true
+        summary-always: true
+        # auto-push: ${{ github.event_name == 'push' }}
+        auto-push: true
