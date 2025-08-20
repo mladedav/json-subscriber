@@ -24,6 +24,11 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - name: Check
       run: cargo +beta clippy --workspace --all-targets --all-features -- -D warnings
+    # This check is run for cargo public dependencies
+    - name: Check nightly
+      env:
+        RUSTFLAGS: "-D warnings"
+      run: cargo +nightly check --workspace --lib --all-features
     - name: rustfmt
       run: cargo +nightly fmt --all --check
 
@@ -101,6 +106,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v1
         with:
+          rust-version: stable
           command: check ${{ matrix.checks }}
           arguments: --features tracing-log,env-filter
           manifest-path: Cargo.toml
