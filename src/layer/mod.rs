@@ -983,7 +983,8 @@ where
         feature = "tracing-opentelemetry-0-28",
         feature = "tracing-opentelemetry-0-29",
         feature = "tracing-opentelemetry-0-30",
-        feature = "tracing-opentelemetry-0-31"
+        feature = "tracing-opentelemetry-0-31",
+        feature = "tracing-opentelemetry-0-32",
     ))]
     #[cfg_attr(
         docsrs,
@@ -992,7 +993,8 @@ where
             feature = "tracing-opentelemetry-0-28",
             feature = "tracing-opentelemetry-0-29",
             feature = "tracing-opentelemetry-0-30",
-            feature = "tracing-opentelemetry-0-31"
+            feature = "tracing-opentelemetry-0-31",
+            feature = "tracing-opentelemetry-0-32",
         ))
     )]
     pub fn with_opentelemetry_ids(&mut self, display_opentelemetry_ids: bool) -> &mut Self {
@@ -1034,6 +1036,21 @@ where
                         };
                     }
 
+                    #[cfg(feature = "tracing-opentelemetry-0-32")]
+                    {
+                        ids = ids.or_else(|| {
+                            span.extensions()
+                                .get::<tracing_opentelemetry_0_32::OtelData>()
+                                .and_then(|otel_data| {
+                                    let trace_id = otel_data.trace_id()?;
+                                    let span_id = otel_data.span_id()?;
+                                    Some(serde_json::json!({
+                                        "traceId": trace_id.to_string(),
+                                        "spanId": span_id.to_string(),
+                                    }))
+                                })
+                        });
+                    }
                     otel_extraction!(
                         "tracing-opentelemetry-0-31",
                         tracing_opentelemetry_0_31,
