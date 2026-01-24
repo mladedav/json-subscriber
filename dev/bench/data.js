@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769293204067,
+  "lastUpdate": 1769294158264,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -827,6 +827,174 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 426392,
             "range": "± 29580",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "github@jessebakker.com",
+            "name": "Jesse",
+            "username": "Jesse-Bakker"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "46b62d2e928f2329f517db4ab2ce8978767186fd",
+          "message": "feat: support tracing-opentelemetry 0.32 (#30)\n\nThis can be opted in with the new `tracing-opentelemetry-0-32` feature.\n\nCo-authored-by: David Mládek <david.mladek.cz@gmail.com>",
+          "timestamp": "2026-01-24T23:31:15+01:00",
+          "tree_id": "1a72d6102ded32bbdc1bb2eb3444d3c9073ff9d4",
+          "url": "https://github.com/mladedav/json-subscriber/commit/46b62d2e928f2329f517db4ab2ce8978767186fd"
+        },
+        "date": 1769294157774,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/single_thread/1",
+            "value": 289,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 25889,
+            "range": "± 1289",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 2899,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 29254,
+            "range": "± 977",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 14540,
+            "range": "± 90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 54641,
+            "range": "± 2050",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 845,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 26801,
+            "range": "± 1170",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1127,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 28449,
+            "range": "± 921",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 26847,
+            "range": "± 1075",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 30775,
+            "range": "± 852",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 8259,
+            "range": "± 41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 40886,
+            "range": "± 1636",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 11237,
+            "range": "± 60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 48187,
+            "range": "± 1481",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 45796,
+            "range": "± 1739",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 73219,
+            "range": "± 3225",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 41860,
+            "range": "± 174",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 106440,
+            "range": "± 3366",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 55676,
+            "range": "± 312",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 137876,
+            "range": "± 5015",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 129839,
+            "range": "± 6912",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 409403,
+            "range": "± 26256",
             "unit": "ns/iter"
           }
         ]
