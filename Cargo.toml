@@ -31,6 +31,10 @@ tracing-opentelemetry-0-31 = [
     "dep:tracing-opentelemetry-0-31",
     "dep:opentelemetry-0-30",
 ]
+tracing-opentelemetry-0-32 = [
+    "dep:tracing-opentelemetry-0-32",
+    "dep:opentelemetry-0-31",
+]
 
 # TODO Remove this for the next breaking release.
 # This is the price I have to pay to the gods of semantic versioning for failing to notice I created
@@ -67,6 +71,8 @@ tracing-opentelemetry-0-30 = { package = "tracing-opentelemetry", version = "0.3
 opentelemetry-0-29 = { package = "opentelemetry", version = "0.29.0", default-features = false, features = ["futures"], optional = true }
 tracing-opentelemetry-0-31 = { package = "tracing-opentelemetry", version = "0.31.0", default-features = false, optional = true }
 opentelemetry-0-30 = { package = "opentelemetry", version = "0.30.0", default-features = false, optional = true }
+tracing-opentelemetry-0-32 = { package = "tracing-opentelemetry", version = "0.32.1", default-features = false, optional = true }
+opentelemetry-0-31 = { package = "opentelemetry", version = "0.31.0", default-features = false, optional = true }
 
 # OpenTelemetry depends on this but with a version such that minimal versions are broken. We do not use this.
 async-trait = { version = "0.1.9", default-features = false, optional = true }

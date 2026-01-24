@@ -548,7 +548,8 @@ where
         feature = "tracing-opentelemetry-0-28",
         feature = "tracing-opentelemetry-0-29",
         feature = "tracing-opentelemetry-0-30",
-        feature = "tracing-opentelemetry-0-31"
+        feature = "tracing-opentelemetry-0-31",
+        feature = "tracing-opentelemetry-0-32",
     ))]
     #[cfg_attr(
         docsrs,
@@ -557,7 +558,8 @@ where
             feature = "tracing-opentelemetry-0-28",
             feature = "tracing-opentelemetry-0-29",
             feature = "tracing-opentelemetry-0-30",
-            feature = "tracing-opentelemetry-0-31"
+            feature = "tracing-opentelemetry-0-31",
+            feature = "tracing-opentelemetry-0-32",
         ))
     )]
     #[must_use]

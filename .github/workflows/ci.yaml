@@ -80,13 +80,9 @@ jobs:
     - name: Select minimal version
       run: cargo +nightly update -Z minimal-versions
     - name: Run tests
-      run: >
-        cargo +${{ env.MSRV }}
-        test
-        --workspace
-        --all-features
-        --all-targets
-        --locked
+      run: |
+        cargo update -p regex --precise 1.5.3
+        cargo +${{ env.MSRV }} test --workspace --all-features --all-targets --locked
 
   deny-check:
     name: cargo-deny check
