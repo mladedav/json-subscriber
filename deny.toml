@@ -1,21 +1,19 @@
 [advisories]
-version = 2
+unmaintained = "workspace"
+unsound = "all"
 ignore = []
 
 [licenses]
-version = 2
 allow = ["Apache-2.0", "MIT", "Unicode-3.0"]
 confidence-threshold = 0.8
 
 [bans]
 multiple-versions = "deny"
+wildcards = "deny"
 highlight = "all"
-skip-tree = [
-    # pulled in by tracing
-    { name = "matchers" },
-]
+skip-tree = []
 
 [sources]
-unknown-registry = "warn"
-unknown-git = "warn"
+unknown-registry = "deny"
+unknown-git = "deny"
 allow-git = []
