@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.2.6...json-subscriber-v0.2.7) - 2026-01-24
+
+### Added
+
+- support tracing-opentelemetry 0.32 ([#30](https://github.com/mladedav/json-subscriber/pull/30))
+
 ### Other
 
-- use trusted publishing to crates.io
+- Extract opentelemetry ID retrieval code into a macro ([#27](https://github.com/mladedav/json-subscriber/pull/27))
 
 ## [0.2.6](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.2.5...json-subscriber-v0.2.6) - 2025-07-01
 
