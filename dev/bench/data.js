@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769292984698,
+  "lastUpdate": 1769293204067,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -659,6 +659,174 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 438711,
             "range": "± 24832",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.mladek.cz@gmail.com",
+            "name": "David Mládek",
+            "username": "mladedav"
+          },
+          "committer": {
+            "email": "david.mladek.cz@gmail.com",
+            "name": "David Mládek",
+            "username": "mladedav"
+          },
+          "distinct": true,
+          "id": "8b069561d5a7dcde890b2fddb4e0ce640901ee08",
+          "message": "deps: update tracing-subscriber",
+          "timestamp": "2026-01-24T23:15:00+01:00",
+          "tree_id": "3369df6577d757f05b212f06a041f31fbb1e6838",
+          "url": "https://github.com/mladedav/json-subscriber/commit/8b069561d5a7dcde890b2fddb4e0ce640901ee08"
+        },
+        "date": 1769293203787,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/single_thread/1",
+            "value": 289,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 27355,
+            "range": "± 1262",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 2871,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 30268,
+            "range": "± 1928",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 14442,
+            "range": "± 189",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 56337,
+            "range": "± 1780",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 833,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 27554,
+            "range": "± 864",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1078,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 29415,
+            "range": "± 1115",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 27822,
+            "range": "± 997",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 32185,
+            "range": "± 1173",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 8241,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 41419,
+            "range": "± 1408",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 10824,
+            "range": "± 438",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 48895,
+            "range": "± 1306",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 47204,
+            "range": "± 1817",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 76084,
+            "range": "± 2635",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 41904,
+            "range": "± 321",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 108033,
+            "range": "± 5967",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 54470,
+            "range": "± 382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 135276,
+            "range": "± 4504",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 134715,
+            "range": "± 7075",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 426392,
+            "range": "± 29580",
             "unit": "ns/iter"
           }
         ]
