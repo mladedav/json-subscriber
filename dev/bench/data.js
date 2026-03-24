@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774347213359,
+  "lastUpdate": 1774362591196,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -1987,6 +1987,174 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 444633,
             "range": "± 22092",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "41898282+github-actions[bot]@users.noreply.github.com",
+            "name": "github-actions[bot]",
+            "username": "github-actions[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b24ff4ac06998c5485e570db241bd7acefafe6ac",
+          "message": "chore: release v0.2.8 (#34)\n\n## 🤖 New release\n\n* `json-subscriber`: 0.2.7 -> 0.2.8 (✓ API compatible changes)\n\n<details><summary><i><b>Changelog</b></i></summary><p>\n\n<blockquote>\n\n##\n[0.2.8](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.2.7...json-subscriber-v0.2.8)\n- 2026-03-24\n\n### Added\n\n- *(layer)* simple renames of flattened event fields\n([#23](https://github.com/mladedav/json-subscriber/pull/23))\n</blockquote>\n\n\n</p></details>\n\n---\nThis PR was generated with\n[release-plz](https://github.com/release-plz/release-plz/).\n\nCo-authored-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-24T15:25:29+01:00",
+          "tree_id": "49f77b172bbde73d4de7dfa2ce5f4a9f0abf570b",
+          "url": "https://github.com/mladedav/json-subscriber/commit/b24ff4ac06998c5485e570db241bd7acefafe6ac"
+        },
+        "date": 1774362590845,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/single_thread/1",
+            "value": 287,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 39198,
+            "range": "± 2227",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 2872,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 41613,
+            "range": "± 1981",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 14399,
+            "range": "± 215",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 56299,
+            "range": "± 3008",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 835,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 39424,
+            "range": "± 2299",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1112,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 44411,
+            "range": "± 2604",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 40319,
+            "range": "± 3093",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 41106,
+            "range": "± 2016",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 8221,
+            "range": "± 108",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 46927,
+            "range": "± 2828",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 11189,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 53694,
+            "range": "± 2472",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 48937,
+            "range": "± 2569",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 80030,
+            "range": "± 2840",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 41238,
+            "range": "± 727",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 106986,
+            "range": "± 7248",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 55732,
+            "range": "± 689",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 132678,
+            "range": "± 7031",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 131620,
+            "range": "± 7785",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 418921,
+            "range": "± 28946",
             "unit": "ns/iter"
           }
         ]
