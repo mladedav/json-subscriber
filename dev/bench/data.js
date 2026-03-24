@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774369113684,
+  "lastUpdate": 1774381662159,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -2319,6 +2319,174 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 416102,
             "range": "± 26399",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.mladek.cz@gmail.com",
+            "name": "David Mládek",
+            "username": "mladedav"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "62e12575f0e336d38bbf8bacf16837b25efe580f",
+          "message": "feat(layer)!: make adding multiple dynamic fields cheaper (#35)\n\n## Motivation\n\nAdding multiple dynamic fields was expensive because it had to always\nallocate the string for each key on every tracing invocation as well as\ncreate a `serde_json::Value`.\n\n## Solution\n\nNow the strings may be `&'static str` if known beforehand and the values\nmay be left as `impl Serialize` if they're available. The fields will be\nserialized into the output string as needed.",
+          "timestamp": "2026-03-24T20:43:19+01:00",
+          "tree_id": "9b40f7d2ff76c419ee4ec691f925ecb0c58093ce",
+          "url": "https://github.com/mladedav/json-subscriber/commit/62e12575f0e336d38bbf8bacf16837b25efe580f"
+        },
+        "date": 1774381661730,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/single_thread/1",
+            "value": 306,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 42772,
+            "range": "± 2491",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 3023,
+            "range": "± 58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 45305,
+            "range": "± 2300",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 15057,
+            "range": "± 862",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 53719,
+            "range": "± 2525",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 815,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 42447,
+            "range": "± 2001",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1095,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 46127,
+            "range": "± 2428",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 42768,
+            "range": "± 2686",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 43967,
+            "range": "± 2366",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 8187,
+            "range": "± 84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 47552,
+            "range": "± 2736",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 10925,
+            "range": "± 297",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 56131,
+            "range": "± 2544",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 49760,
+            "range": "± 2857",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 80908,
+            "range": "± 3050",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 41011,
+            "range": "± 730",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 100132,
+            "range": "± 4120",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 55156,
+            "range": "± 241",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 127459,
+            "range": "± 6037",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 130093,
+            "range": "± 7555",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 393516,
+            "range": "± 27284",
             "unit": "ns/iter"
           }
         ]
