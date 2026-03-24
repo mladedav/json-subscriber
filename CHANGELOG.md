@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.2.8...json-subscriber-v0.3.0) - 2026-03-24
+
+### Added
+
+- *(layer)* [**breaking**] make adding multiple dynamic fields cheaper ([#35](https://github.com/mladedav/json-subscriber/pull/35))
+
 ## [0.2.8](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.2.7...json-subscriber-v0.2.8) - 2026-03-24
 
 ### Added
