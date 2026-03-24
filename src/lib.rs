@@ -105,6 +105,7 @@
 
 mod cached;
 mod cursor;
+mod field_writer;
 mod fields;
 pub mod fmt;
 mod layer;
@@ -114,5 +115,6 @@ mod visitor;
 #[cfg(test)]
 mod tests;
 
+pub use field_writer::FieldWriter;
 pub use fmt::{fmt, layer};
 pub use layer::JsonLayer;

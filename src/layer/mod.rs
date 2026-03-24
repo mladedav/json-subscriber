@@ -1,11 +1,4 @@
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::{BTreeMap, HashMap},
-    fmt,
-    io,
-    sync::Arc,
-};
+use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fmt, io, sync::Arc};
 
 use serde::Serialize;
 use tracing_core::{
@@ -29,6 +22,7 @@ use uuid::Uuid;
 
 use crate::{
     cached::Cached,
+    field_writer::FieldWriter,
     fields::{JsonFields, JsonFieldsInner},
     serde::RenamedFields,
     visitor::JsonVisitor,
@@ -93,6 +87,9 @@ pub(crate) enum JsonValue<S: for<'lookup> LookupSpan<'lookup>> {
     DynamicCachedFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
     DynamicRawFromEvent(
         Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
+    ),
+    DynamicFromEventWithWriter(
+        Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut FieldWriter<'_>) + Send + Sync>,
     ),
 }
 
@@ -451,13 +448,11 @@ where
         );
     }
 
-    /// Adds multiple new dynamic field where the keys may not be known when calling this method.
+    /// Adds multiple new dynamic fields where the keys may not be known when calling this method.
     ///
-    /// This method takes a closure argument that will be called with the event and tracing context.
-    /// Through these, the parent span can be accessed among other things. This closure returns a
-    /// value which can be iterated over to return a tuple of a `String` which will be used as a
-    /// JSON key and a `serde_json::Value` which will be used as a value. In most cases returning
-    /// `HashMap<String, serde_json::Value>` should be sufficient.
+    /// This method takes a closure argument that will be called with the event and tracing context
+    /// along with a [`FieldWriter`]. Call [`FieldWriter::write_field`] to write key-value pairs
+    /// directly into the JSON output. Values accept any type implementing [`serde::Serialize`].
     ///
     /// It is the user's responsibility to make sure that no two keys clash as that would create an
     /// invalid JSON. It's generally better to use [`add_dynamic_field`](Self::add_dynamic_field)
@@ -465,38 +460,32 @@ where
     ///
     /// # Examples
     ///
-    /// Print either a question or an answer:
+    /// Print a question or an answer:
     ///
     /// ```rust
     /// # use tracing_subscriber::prelude::*;
     ///
     /// let mut layer = json_subscriber::JsonLayer::stdout();
     /// layer.add_multiple_dynamic_fields(
-    ///     |_event, _context| {
+    ///     |_event, _context, writer| {
     /// #       let condition = true;
     ///         if condition {
-    ///             [("question".to_owned(), serde_json::Value::String("What?".to_owned()))]
+    ///             _ = writer.write_field("question", "What?");
     ///         } else {
-    ///             [("answer".to_owned(), serde_json::Value::Number(42.into()))]
+    ///             _ = writer.write_field("answer", 42u64);
     ///         }
-    /// });
+    ///     }
+    /// );
     /// # tracing_subscriber::registry().with(layer);
-    /// # fn get_hostname() -> &'static str { "localhost" }
     /// ```
-    pub fn add_multiple_dynamic_fields<Fun, Res>(&mut self, mapper: Fun)
+    pub fn add_multiple_dynamic_fields<Fun>(&mut self, mapper: Fun)
     where
-        for<'a> Fun: Fn(&'a Event<'_>, &Context<'_, S>) -> Res + Send + Sync + 'a,
-        Res: IntoIterator<Item = (String, serde_json::Value)>,
+        Fun: Fn(&Event<'_>, &Context<'_, S>, &mut FieldWriter<'_>) + Send + Sync + 'static,
     {
         self.flattened_values.insert(
             FlatSchemaKey::new_uuid(),
-            JsonValue::DynamicFromEvent(Box::new(move |event| {
-                serde_json::to_value(
-                    mapper(event.event(), event.context())
-                        .into_iter()
-                        .collect::<HashMap<_, _>>(),
-                )
-                .ok()
+            JsonValue::DynamicFromEventWithWriter(Box::new(move |event, writer| {
+                mapper(event.event(), event.context(), writer);
             })),
         );
     }
