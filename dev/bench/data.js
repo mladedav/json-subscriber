@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774341487260,
+  "lastUpdate": 1774347213359,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -1819,6 +1819,174 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 392605,
             "range": "± 30782",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.mladek.cz@gmail.com",
+            "name": "David Mládek",
+            "username": "mladedav"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ebed80ed06a843a4b68af34494f72de35b3239d2",
+          "message": "feat(layer): simple renames of flattened event fields (#23)\n\n## Motivation\n\nCloses #19.\n\nUsers sometimes want to rename the fields in events and spans. This\nallows that specifically for flattened events. This should be done more\ngenerally somehow.\n\n## Solution\n\nAccept a closure and a state object, calling the closure for every field\nto assess whether to rename or not. This will most likely be a lookup in\na map.",
+          "timestamp": "2026-03-24T11:08:38+01:00",
+          "tree_id": "9ff0f50bdc4c124d9a94fd71a061d488a6154860",
+          "url": "https://github.com/mladedav/json-subscriber/commit/ebed80ed06a843a4b68af34494f72de35b3239d2"
+        },
+        "date": 1774347212897,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/single_thread/1",
+            "value": 312,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 43451,
+            "range": "± 2464",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 3092,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 47193,
+            "range": "± 2582",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 15593,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 60640,
+            "range": "± 2216",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 792,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 44990,
+            "range": "± 3054",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1095,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 47104,
+            "range": "± 2395",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 43823,
+            "range": "± 2070",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 44177,
+            "range": "± 2143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 7892,
+            "range": "± 55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 49071,
+            "range": "± 3286",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 10822,
+            "range": "± 52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 48023,
+            "range": "± 2408",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 49453,
+            "range": "± 3381",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 82178,
+            "range": "± 4564",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 39953,
+            "range": "± 247",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 95276,
+            "range": "± 4649",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 54432,
+            "range": "± 973",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 112318,
+            "range": "± 6218",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 132406,
+            "range": "± 8715",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 444633,
+            "range": "± 22092",
             "unit": "ns/iter"
           }
         ]
