@@ -12,6 +12,7 @@ use tracing_subscriber::{
 use crate::{
     cached::Cached,
     cursor::Cursor,
+    field_writer::FieldWriter,
     layer::{JsonLayer, JsonValue, SchemaKey},
     serde::JsonSubscriberFormatter,
 };
@@ -176,6 +177,16 @@ where
             }
 
             for value in self.flattened_values.values() {
+                if let JsonValue::DynamicFromEventWithWriter(fun) = value {
+                    let mut inner = writer.inner_mut();
+                    let mut field_writer = FieldWriter::new(&mut inner, serialized_anything);
+                    fun(&event_ref, &mut field_writer);
+                    if field_writer.wrote_anything() {
+                        serialized_anything = true;
+                    }
+                    continue;
+                }
+
                 let Some(value) = resolve_json_value(value, &event_ref) else {
                     continue;
                 };
@@ -298,6 +309,8 @@ fn resolve_json_value<'a, S: Subscriber + for<'lookup> LookupSpan<'lookup>>(
             event.parent_span().and_then(fun).map(MaybeCached::Cached)
         },
         JsonValue::DynamicRawFromEvent(fun) => Some(MaybeCached::Raw(fun)),
+        // This cannot be used with a static key so this should never be called
+        JsonValue::DynamicFromEventWithWriter(_) => None,
     }
 }
 
