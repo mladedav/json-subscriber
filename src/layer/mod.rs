@@ -30,6 +30,7 @@ use uuid::Uuid;
 use crate::{
     cached::Cached,
     fields::{JsonFields, JsonFieldsInner},
+    serde::RenamedFields,
     visitor::JsonVisitor,
 };
 
@@ -790,6 +791,55 @@ where
         self
     }
 
+    /// Print all event fields, each as its own top level member of the JSON. This also allows the
+    /// fields to have different keys than the field names used in tracing.
+    ///
+    /// Only field names can be renamed this way, not other fields such as `timestamp` or `target`
+    /// which usually take the key as their parameter (such as `Self::with_target`).
+    ///
+    /// The renames are realized by a provided function that will be passed the original field name
+    /// and a user-defined context and it must produce the new name.
+    ///
+    /// For example when simple static renames are needed the following can work:
+    ///
+    /// ```rust
+    /// # use std::collections::HashMap;
+    /// # use tracing_subscriber::prelude::*;
+    ///
+    /// let mut layer = json_subscriber::JsonLayer::stdout();
+    ///
+    /// let renames = HashMap::from([
+    ///     ("message".to_owned(), "msg".to_owned()),
+    ///     ("foo".to_owned(), "bar".to_owned()),
+    /// ]);
+    /// layer.with_flattened_event_with_renames(
+    ///     move |name, map| map.get(name).map_or(name, String::as_str),
+    ///     renames,
+    /// );
+    /// # tracing_subscriber::registry().with(layer);
+    ///
+    /// // This will produce something like `{"bar":3,"msg":"x",...}`
+    /// tracing::info!(foo = 3, "x");
+    /// ```
+    ///
+    /// It is the user's responsibility to make sure that the field names will not clash with other
+    /// defined members of the output JSON. If they clash, invalid JSON with multiple fields with
+    /// the same key may be generated.
+    pub fn with_flattened_event_with_renames<F, T>(&mut self, renames: F, context: T) -> &mut Self
+    where
+        F: for<'a> Fn(&'a str, &'a T) -> &'a str + Send + Sync + 'static + Clone,
+        T: Clone + Send + Sync + 'static,
+    {
+        self.flattened_values.insert(
+            FlatSchemaKey::FlattenedEvent,
+            JsonValue::DynamicFromEvent(Box::new(move |event| {
+                serde_json::to_value(RenamedFields::new(event.event(), renames.clone(), &context))
+                    .ok()
+            })),
+        );
+        self
+    }
+
     /// Sets whether or not the log line will include the current span in formatted events.
     pub fn with_current_span(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
@@ -1108,6 +1158,8 @@ fn write_escaped(writer: &mut dyn fmt::Write, value: &str) -> Result<(), fmt::Er
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use serde_json::json;
     use tracing::subscriber::with_default;
     use tracing_subscriber::{registry, Layer, Registry};
@@ -1162,6 +1214,39 @@ mod tests {
 
         test_json(&expected, layer, || {
             tracing::info!(does = "not matter", "whatever");
+        });
+    }
+
+    #[test]
+    fn flattened_event_with_renames() {
+        let renames = HashMap::from([
+            ("message".to_owned(), "msg".to_owned()),
+            ("msg".to_owned(), "message".to_owned()),
+            ("same".to_owned(), "same".to_owned()),
+            ("different".to_owned(), "gone".to_owned()),
+        ]);
+        let mut layer = JsonLayer::stdout();
+        layer.with_flattened_event_with_renames(
+            move |name, map| map.get(name).map_or(name, String::as_str),
+            renames,
+        );
+
+        let expected = json!({
+            "message": "msg",
+            "msg": "message",
+            "same": "same",
+            "gone": "different",
+            "another": "another",
+        });
+
+        test_json(&expected, layer, || {
+            tracing::info!(
+                msg = "msg",
+                same = "same",
+                different = "different",
+                another = "another",
+                "message"
+            );
         });
     }
 }
