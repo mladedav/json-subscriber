@@ -81,7 +81,8 @@ lazy_static = { version = "1.1.0", default-features = false, optional = true }
 
 
 [dev-dependencies]
-criterion = { version = "0.5.1", default-features = false }
+criterion = { version = "0.8.2", default-features = false }
+
 snafu = "0.6.10"
 thiserror = "1.0.31"
 tracing = { version = "0.1", features = ["attributes"] }
@@ -100,6 +101,10 @@ bench = false
 
 [[bench]]
 name = "tracing_subscriber"
+harness = false
+
+[[bench]]
+name = "operations"
 harness = false
 
 [lints.rust]

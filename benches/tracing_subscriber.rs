@@ -1,9 +1,9 @@
 use std::{io::sink, time::Duration};
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 mod support;
-use support::MultithreadedBench;
+use support::{bench_thrpt, MultithreadedBench};
 
 fn mk_dispatch() -> tracing::Dispatch {
     #[cfg(not(bench_tracing_baseline))]
@@ -79,18 +79,6 @@ fn bench_new_span(c: &mut Criterion) {
             })
         });
     });
-}
-
-type Group<'a> = criterion::BenchmarkGroup<'a, criterion::measurement::WallTime>;
-fn bench_thrpt(c: &mut Criterion, name: &'static str, mut f: impl FnMut(&mut Group<'_>, &usize)) {
-    const N_SPANS: &[usize] = &[1, 10, 50];
-
-    let mut group = c.benchmark_group(name);
-    for spans in N_SPANS {
-        group.throughput(Throughput::Elements(*spans as u64));
-        f(&mut group, spans);
-    }
-    group.finish();
 }
 
 fn bench_event(c: &mut Criterion) {

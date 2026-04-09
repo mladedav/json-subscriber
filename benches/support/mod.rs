@@ -4,7 +4,28 @@ use std::{
     time::{Duration, Instant},
 };
 
+use criterion::{Criterion, Throughput};
 use tracing::Dispatch;
+
+type Group<'a> = criterion::BenchmarkGroup<'a, criterion::measurement::WallTime>;
+#[allow(
+    dead_code,
+    reason = "This is used from benches, just the module tree is confused."
+)]
+pub(super) fn bench_thrpt(
+    c: &mut Criterion,
+    name: &'static str,
+    mut f: impl FnMut(&mut Group<'_>, &usize),
+) {
+    const N_SPANS: &[usize] = &[1, 10, 50];
+
+    let mut group = c.benchmark_group(name);
+    for spans in N_SPANS {
+        group.throughput(Throughput::Elements(*spans as u64));
+        f(&mut group, spans);
+    }
+    group.finish();
+}
 
 #[derive(Clone)]
 pub(super) struct MultithreadedBench {
