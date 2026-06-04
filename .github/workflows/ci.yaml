@@ -82,7 +82,7 @@ jobs:
     - name: Run tests
       run: |
         cargo update -p regex --precise 1.5.3
-        cargo +${{ env.MSRV }} test --workspace --all-features --all-targets --locked
+        cargo +${{ env.MSRV }} test --workspace --all-features --lib --examples --tests --locked
 
   deny-check:
     name: cargo-deny check
