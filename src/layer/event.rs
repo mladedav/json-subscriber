@@ -12,7 +12,7 @@ use tracing_subscriber::{
 use crate::{
     cached::Cached,
     cursor::Cursor,
-    field_writer::FieldWriter,
+    field_writer::{write_json_key, FieldWriter},
     layer::{JsonLayer, JsonValue, SchemaKey},
     serde::JsonSubscriberFormatter,
 };
@@ -71,7 +71,7 @@ where
     pub(crate) fn format_event(
         &self,
         context: &Context<'_, S>,
-        writer: &mut String,
+        writer: &mut Vec<u8>,
         event: &Event<'_>,
     ) -> fmt::Result {
         let mut visit = || {
@@ -100,7 +100,7 @@ where
                 match value {
                     MaybeCached::Serde(value) => {
                         if serialized_anything && !serialized_anything_serde {
-                            writer.inner_mut().push(',');
+                            writer.inner_mut().push(b',');
                         }
                         serialized_anything = true;
                         serialized_anything_serde = true;
@@ -108,61 +108,46 @@ where
                     },
                     MaybeCached::Cached(Cached::Raw(raw)) => {
                         debug_assert!(
-                            serde_json::to_value(&*raw).is_ok(),
+                            serde_json::from_slice::<serde_json::Value>(raw.as_bytes()).is_ok(),
                             "[json-subscriber] provided cached value is not valid json: {raw}",
                         );
                         let mut writer = writer.inner_mut();
                         if serialized_anything {
-                            writer.push(',');
+                            writer.push(b',');
                         }
                         serialized_anything = true;
-                        writer.push('"');
-                        writer.push_str(key);
-                        writer.push_str("\":");
-                        writer.push_str(&raw);
-                    },
-                    MaybeCached::Cached(Cached::Array(arr)) => {
-                        let mut writer = writer.inner_mut();
-                        if serialized_anything {
-                            writer.push(',');
-                        }
-                        serialized_anything = true;
-                        writer.push('"');
-                        writer.push_str(key);
-                        writer.push_str("\":[");
-                        let mut first = true;
-                        for raw in arr {
-                            debug_assert!(
-                                serde_json::to_value(&*raw).is_ok(),
-                                "[json-subscriber] provided cached value in array is not valid \
-                                 json: {raw}",
-                            );
-                            if !first {
-                                writer.push(',');
-                            }
-                            first = false;
-                            writer.push_str(&raw);
-                        }
-                        writer.push(']');
+                        write_json_key(&mut writer, key)?;
+                        writer.extend_from_slice(raw.as_bytes());
                     },
                     MaybeCached::Raw(raw_fun) => {
                         let mut writer = writer.inner_mut();
                         let rollback_position = writer.len();
                         if serialized_anything {
-                            writer.push(',');
+                            writer.push(b',');
                         }
-                        writer.push('"');
-                        writer.push_str(key);
-                        writer.push_str("\":");
+                        write_json_key(&mut writer, key)?;
                         let start_position = writer.len();
-                        match raw_fun(&event_ref, &mut *writer) {
+                        match raw_fun(&event_ref, &mut writer) {
                             Ok(()) => {
-                                debug_assert!(
-                                    serde_json::to_value(&writer[start_position..]).is_ok(),
-                                    "[json-subscriber] raw value factory created invalid json: {}",
-                                    &writer[start_position..],
-                                );
-                                serialized_anything = true;
+                                if writer.len() == start_position {
+                                    // The factory wrote nothing, meaning it had no value for this
+                                    // event (e.g. no OpenTelemetry context). Roll back the key so
+                                    // the field is omitted entirely instead of serialized as an
+                                    // empty value.
+                                    writer.truncate(rollback_position);
+                                } else {
+                                    debug_assert!(
+                                        serde_json::from_slice::<serde_json::Value>(
+                                            &writer[start_position..],
+                                        )
+                                        .is_ok(),
+                                        "[json-subscriber] raw value factory created invalid \
+                                         json: {}",
+                                        std::str::from_utf8(&writer[start_position..])
+                                            .unwrap_or("<invalid utf8>"),
+                                    );
+                                    serialized_anything = true;
+                                }
                             },
                             Err(error) => {
                                 eprintln!(
@@ -196,7 +181,7 @@ where
                         let map = value.as_object().unwrap();
                         if !map.is_empty() {
                             if serialized_anything && !serialized_anything_serde {
-                                writer.inner_mut().push(',');
+                                writer.inner_mut().push(b',');
                             }
                             serialized_anything = true;
                             serialized_anything_serde = true;
@@ -207,10 +192,10 @@ where
                     },
                     MaybeCached::Cached(Cached::Raw(raw)) => {
                         debug_assert!(
-                            serde_json::to_value(&*raw).is_ok(),
+                            serde_json::from_slice::<serde_json::Value>(raw.as_bytes()).is_ok(),
                             "[json-subscriber] provided cached value is not valid json: {raw}",
                         );
-                        if !raw.contains('\"') {
+                        if !raw.contains('"') {
                             // If the raw string contains at least a single quote, there is at least
                             // one field in the object. Otherwise it is empty and we just skip it.
                             // Assuming it's a valid JSON of course.
@@ -230,40 +215,40 @@ where
                         };
                         let mut writer = writer.inner_mut();
                         if serialized_anything {
-                            writer.push(',');
+                            writer.push(b',');
                         }
                         serialized_anything = true;
-                        writer.push_str(object_contents);
-                    },
-                    MaybeCached::Cached(Cached::Array(_arr)) => {
-                        todo!();
+                        writer.extend_from_slice(object_contents.as_bytes());
                     },
                     MaybeCached::Raw(raw_fun) => {
-                        let mut output = String::new();
+                        let mut output: Vec<u8> = Vec::new();
                         match raw_fun(&event_ref, &mut output) {
                             Ok(()) => {
+                                let Ok(s) = std::str::from_utf8(&output) else {
+                                    eprintln!("[json-subscriber] raw value factory wrote non-utf8");
+                                    continue;
+                                };
                                 debug_assert!(
-                                    serde_json::to_value(&output).is_ok(),
-                                    "[json-subscriber] raw value factory created invalid json: \
-                                     {output}",
+                                    serde_json::from_str::<serde_json::Value>(s).is_ok(),
+                                    "[json-subscriber] raw value factory created invalid json: {s}",
                                 );
-                                let Some(object_contents) = output
+                                let Some(object_contents) = s
                                     .trim()
                                     .strip_prefix('{')
                                     .and_then(|str| str.strip_suffix('}'))
                                 else {
                                     eprintln!(
                                         "[json-subscriber] provided cached value cannot be \
-                                         flattened because it is not an object: {output}"
+                                         flattened because it is not an object: {s}"
                                     );
                                     continue;
                                 };
                                 let mut writer = writer.inner_mut();
                                 if serialized_anything {
-                                    writer.push(',');
+                                    writer.push(b',');
                                 }
                                 serialized_anything = true;
-                                writer.push_str(object_contents);
+                                writer.extend_from_slice(object_contents.as_bytes());
                             },
                             Err(error) => {
                                 eprintln!(
@@ -280,11 +265,12 @@ where
         };
 
         visit().map_err(|_| fmt::Error)?;
-        writer.push('\n');
+        writer.push(b'\n');
 
         debug_assert!(
-            serde_json::to_value(&*writer).is_ok(),
-            "[json-subscriber] serialized line is not valid json: {writer}",
+            serde_json::from_slice::<serde_json::Value>(writer).is_ok(),
+            "[json-subscriber] serialized line is not valid json: {}",
+            std::str::from_utf8(writer).unwrap_or("<invalid utf8>"),
         );
 
         Ok(())
@@ -298,13 +284,11 @@ fn resolve_json_value<'a, S: Subscriber + for<'lookup> LookupSpan<'lookup>>(
     match value {
         JsonValue::Serde(value) => Some(MaybeCached::Serde(Cow::Borrowed(value))),
         JsonValue::DynamicFromEvent(fun) => fun(event).map(Cow::Owned).map(MaybeCached::Serde),
-        JsonValue::DynamicFromSpan(fun) => {
-            event
-                .parent_span()
-                .and_then(fun)
-                .map(Cow::Owned)
-                .map(MaybeCached::Serde)
-        },
+        JsonValue::DynamicFromSpan(fun) => event
+            .parent_span()
+            .and_then(fun)
+            .map(Cow::Owned)
+            .map(MaybeCached::Serde),
         JsonValue::DynamicCachedFromSpan(fun) => {
             event.parent_span().and_then(fun).map(MaybeCached::Cached)
         },
@@ -318,7 +302,5 @@ fn resolve_json_value<'a, S: Subscriber + for<'lookup> LookupSpan<'lookup>>(
 enum MaybeCached<'a, S: for<'lookup> LookupSpan<'lookup>> {
     Serde(Cow<'a, serde_json::Value>),
     Cached(Cached),
-    Raw(
-        &'a Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
-    ),
+    Raw(&'a Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut Vec<u8>) -> fmt::Result + Send + Sync>),
 }
