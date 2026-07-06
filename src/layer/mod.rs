@@ -1,18 +1,19 @@
 use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fmt, io, sync::Arc};
 
+// `fmt::Write` is needed for `write!` on `FmtWrite(&mut Vec<u8>)` inside the raw closures.
+use std::fmt::Write;
+
 use serde::Serialize;
 use tracing_core::{
     span::{Attributes, Id, Record},
-    Event,
-    Subscriber,
+    Event, Subscriber,
 };
 use tracing_serde::fields::AsMap;
 use tracing_subscriber::{
     fmt::{format::Writer, time::FormatTime, MakeWriter, TestWriter},
     layer::Context,
     registry::{LookupSpan, SpanRef},
-    Layer,
-    Registry,
+    Layer, Registry,
 };
 
 mod event;
@@ -22,6 +23,7 @@ use uuid::Uuid;
 
 use crate::{
     cached::Cached,
+    cursor::FmtWrite,
     field_writer::FieldWriter,
     fields::{JsonFields, JsonFieldsInner},
     serde::RenamedFields,
@@ -86,7 +88,7 @@ pub(crate) enum JsonValue<S: for<'lookup> LookupSpan<'lookup>> {
     DynamicFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>),
     DynamicCachedFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
     DynamicRawFromEvent(
-        Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
+        Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut Vec<u8>) -> fmt::Result + Send + Sync>,
     ),
     DynamicFromEventWithWriter(
         Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut FieldWriter<'_>) + Send + Sync>,
@@ -156,24 +158,24 @@ where
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
         thread_local! {
-            static BUF: RefCell<String> = const { RefCell::new(String::new()) };
+            static BUF: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
         }
 
         BUF.with(|buf| {
             let borrow = buf.try_borrow_mut();
             let mut a;
             let mut b;
-            let buf = if let Ok(buf) = borrow {
+            let buf: &mut Vec<u8> = if let Ok(buf) = borrow {
                 a = buf;
-                &mut *a
+                &mut a
             } else {
-                b = String::new();
+                b = Vec::new();
                 &mut b
             };
 
             if self.format_event(&ctx, buf, event).is_ok() {
                 let mut writer = self.make_writer.make_writer_for(event.metadata());
-                let res = io::Write::write_all(&mut writer, buf.as_bytes());
+                let res = io::Write::write_all(&mut writer, buf);
                 if self.log_internal_errors {
                     if let Err(e) = res {
                         eprintln!(
@@ -700,8 +702,12 @@ where
     pub fn with_event(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicFromEvent(Box::new(move |event| {
-                serde_json::to_value(event.field_map()).ok()
+            JsonValue::DynamicRawFromEvent(Box::new(|event, writer: &mut Vec<u8>| {
+                // With the `Vec<u8>` buffer, `serde_json` writes straight into the buffer
+                // (no `Value` tree, no `Cursor`, no per-token UTF-8 check), so this is both
+                // the cleanest and the fastest shape. Key order within the `fields` object
+                // is declaration order (visit order), not alphabetical.
+                serde_json::to_writer(writer, &event.event().field_map()).map_err(|_| fmt::Error)
             })),
         );
         self
@@ -847,17 +853,29 @@ where
     pub fn with_span_list(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicCachedFromSpan(Box::new(|span| {
-                Some(Cached::Array(
-                    span.scope()
-                        .from_root()
-                        .filter_map(|span| {
-                            span.extensions()
-                                .get::<JsonFields>()
-                                .map(|fields| fields.serialized.clone())
-                        })
-                        .collect::<Vec<_>>(),
-                ))
+            JsonValue::DynamicRawFromEvent(Box::new(|event, writer: &mut Vec<u8>| {
+                // Iterate the parent span's scope root→leaf and write each cached
+                // serialized span directly into the buffer as a JSON array. Byte-identical
+                // to the previous `Cached::Array(Vec<Arc<str>>)` path with no per-event
+                // `Vec` allocation.
+                let Some(parent) = event.parent_span() else {
+                    return Ok(());
+                };
+                writer.push(b'[');
+                let mut first = true;
+                for ancestor in parent.scope().from_root() {
+                    let extensions = ancestor.extensions();
+                    let Some(fields) = extensions.get::<JsonFields>() else {
+                        continue;
+                    };
+                    if !first {
+                        writer.push(b',');
+                    }
+                    first = false;
+                    writer.extend_from_slice(fields.serialized.as_bytes());
+                }
+                writer.push(b']');
+                Ok(())
             })),
         );
         self
@@ -907,10 +925,16 @@ where
     ) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicFromEvent(Box::new(move |_| {
-                let mut timestamp = String::with_capacity(32);
-                timer.format_time(&mut Writer::new(&mut timestamp)).ok()?;
-                Some(timestamp.into())
+            JsonValue::DynamicRawFromEvent(Box::new(move |_event, writer: &mut Vec<u8>| {
+                // Write the quoted timestamp straight into the buffer while escaping any
+                // string characters emitted by custom timers.
+                writer.push(b'"');
+                {
+                    let mut writer = EscapedFmtWrite(&mut *writer);
+                    timer.format_time(&mut Writer::new(&mut writer))?;
+                }
+                writer.push(b'"');
+                Ok(())
             })),
         );
         self
@@ -935,10 +959,12 @@ where
     pub fn with_file(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
-                match event.metadata().file() {
-                    Some(file) => write_escaped(writer, file),
-                    None => write!(writer, "null"),
+            JsonValue::DynamicRawFromEvent(Box::new(|event, writer: &mut Vec<u8>| {
+                if let Some(file) = event.metadata().file() {
+                    write_escaped(writer, file)
+                } else {
+                    write_null(writer);
+                    Ok(())
                 }
             })),
         );
@@ -952,10 +978,12 @@ where
     pub fn with_line_number(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicRawFromEvent(Box::new(|event, writer| {
-                match event.metadata().line() {
-                    Some(line) => write!(writer, "{line}"),
-                    None => write!(writer, "null"),
+            JsonValue::DynamicRawFromEvent(Box::new(|event, writer: &mut Vec<u8>| {
+                if let Some(line) = event.metadata().line() {
+                    write!(FmtWrite(&mut *writer), "{line}")
+                } else {
+                    write_null(writer);
+                    Ok(())
                 }
             })),
         );
@@ -980,10 +1008,12 @@ where
     pub fn with_thread_names(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
-                match std::thread::current().name() {
-                    Some(name) => write_escaped(writer, name),
-                    None => write!(writer, "null"),
+            JsonValue::DynamicRawFromEvent(Box::new(|_event, writer: &mut Vec<u8>| {
+                if let Some(name) = std::thread::current().name() {
+                    write_escaped(writer, name)
+                } else {
+                    write_null(writer);
+                    Ok(())
                 }
             })),
         );
@@ -997,11 +1027,11 @@ where
     pub fn with_thread_ids(&mut self, key: impl Into<String>) -> &mut Self {
         self.keyed_values.insert(
             SchemaKey::from(key.into()),
-            JsonValue::DynamicRawFromEvent(Box::new(|_event, writer| {
-                use std::fmt::Write;
-                let mut value = String::with_capacity(12);
-                write!(&mut value, "{:?}", std::thread::current().id())?;
-                write_escaped(writer, &value)
+            JsonValue::DynamicRawFromEvent(Box::new(|_event, writer: &mut Vec<u8>| {
+                writer.push(b'"');
+                write!(EscapedFmtWrite(writer), "{:?}", std::thread::current().id())?;
+                writer.push(b'"');
+                Ok(())
             })),
         );
 
@@ -1040,55 +1070,68 @@ where
         if display_opentelemetry_ids {
             self.keyed_values.insert(
                 SchemaKey::from("openTelemetry"),
-                JsonValue::DynamicFromSpan(Box::new(|span| {
-                    let mut ids: Option<serde_json::Value> = None;
+                JsonValue::DynamicRawFromEvent(Box::new(|event, writer: &mut Vec<u8>| {
+                    let Some(span) = event.parent_span() else {
+                        return Ok(());
+                    };
+
+                    // On the first feature that yields a valid span context, write
+                    // `{"spanId":"<hex>","traceId":"<hex>"}` straight into the buffer. Both
+                    // `TraceId` and `SpanId` implement `Display` as lowercase zero-padded hex,
+                    // so this skips the `Value::Object` + `BTreeMap` + per-id `String`
+                    // allocations of the previous path. Key order matches the previous
+                    // `BTreeMap`-sorted output (`spanId` before `traceId`).
+                    macro_rules! write_ids {
+                        ($trace_id:expr, $span_id:expr) => {{
+                            return write!(
+                                FmtWrite(&mut *writer),
+                                "{{\"spanId\":\"{}\",\"traceId\":\"{}\"}}",
+                                $span_id,
+                                $trace_id,
+                            );
+                        }};
+                    }
 
                     macro_rules! otel_extraction {
                         ($feature:literal, $tracing_otel_crate:ident, $otel_crate:ident) => {
                             #[cfg(feature = $feature)]
                             {
                                 use $otel_crate::trace::{TraceContextExt, TraceId};
-                                ids = ids.or_else(|| {
-                                    span.extensions()
-                                        .get::<$tracing_otel_crate::OtelData>()
-                                        .and_then(|otel_data| {
-                                            // We should use the parent first if available because
-                                            // we can create a new trace and then change the
-                                            // parent. In that case the value in the builder is not
-                                            // updated.
-                                            let mut trace_id = otel_data
-                                                .parent_cx
-                                                .span()
-                                                .span_context()
-                                                .trace_id();
-                                            if trace_id == TraceId::INVALID {
-                                                trace_id = otel_data.builder.trace_id?;
-                                            }
-                                            let span_id = otel_data.builder.span_id?;
-                                            Some(serde_json::json!({
-                                                "traceId": trace_id.to_string(),
-                                                "spanId": span_id.to_string(),
-                                            }))
-                                        })
-                                });
+                                if let Some(otel_data) =
+                                    span.extensions().get::<$tracing_otel_crate::OtelData>()
+                                {
+                                    // Prefer the parent's trace id: it is possible to create a
+                                    // new trace and then change the parent, in which case the
+                                    // value in the builder is stale.
+                                    let parent_trace_id =
+                                        otel_data.parent_cx.span().span_context().trace_id();
+                                    let trace_id = if parent_trace_id == TraceId::INVALID {
+                                        otel_data.builder.trace_id
+                                    } else {
+                                        Some(parent_trace_id)
+                                    };
+                                    if let (Some(trace_id), Some(span_id)) =
+                                        (trace_id, otel_data.builder.span_id)
+                                    {
+                                        write_ids!(trace_id, span_id);
+                                    }
+                                }
                             }
                         };
                     }
 
                     #[cfg(feature = "tracing-opentelemetry-0-32")]
                     {
-                        ids = ids.or_else(|| {
-                            span.extensions()
-                                .get::<tracing_opentelemetry_0_32::OtelData>()
-                                .and_then(|otel_data| {
-                                    let trace_id = otel_data.trace_id()?;
-                                    let span_id = otel_data.span_id()?;
-                                    Some(serde_json::json!({
-                                        "traceId": trace_id.to_string(),
-                                        "spanId": span_id.to_string(),
-                                    }))
-                                })
-                        });
+                        if let Some(otel_data) = span
+                            .extensions()
+                            .get::<tracing_opentelemetry_0_32::OtelData>()
+                        {
+                            if let (Some(trace_id), Some(span_id)) =
+                                (otel_data.trace_id(), otel_data.span_id())
+                            {
+                                write_ids!(trace_id, span_id);
+                            }
+                        }
                     }
                     otel_extraction!(
                         "tracing-opentelemetry-0-31",
@@ -1116,7 +1159,7 @@ where
                         opentelemetry_0_24
                     );
 
-                    ids
+                    Ok(())
                 })),
             );
         } else {
@@ -1127,31 +1170,65 @@ where
     }
 }
 
-fn write_escaped(writer: &mut dyn fmt::Write, value: &str) -> Result<(), fmt::Error> {
-    let mut rest = value;
-    writer.write_str("\"")?;
-    let mut shift = 0;
-    while let Some(position) = rest
-        .get(shift..)
-        .and_then(|haystack| haystack.find(['\"', '\\']))
-    {
-        let (before, after) = rest.split_at(position + shift);
-        writer.write_str(before)?;
-        writer.write_char('\\')?;
-        rest = after;
-        shift = 1;
+fn write_null(writer: &mut Vec<u8>) {
+    writer.extend_from_slice(b"null");
+}
+
+struct EscapedFmtWrite<'a>(&'a mut Vec<u8>);
+
+impl fmt::Write for EscapedFmtWrite<'_> {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        write_escaped_contents(self.0, value)
     }
-    writer.write_str(rest)?;
-    writer.write_str("\"")
+}
+
+fn write_escaped(writer: &mut Vec<u8>, value: &str) -> fmt::Result {
+    writer.push(b'"');
+    write_escaped_contents(writer, value)?;
+    writer.push(b'"');
+    Ok(())
+}
+
+fn write_escaped_contents(writer: &mut Vec<u8>, value: &str) -> fmt::Result {
+    let mut start = 0;
+    for (index, character) in value.char_indices() {
+        let escaped = match character {
+            '"' => Some(b"\\\"".as_slice()),
+            '\\' => Some(b"\\\\".as_slice()),
+            '\n' => Some(b"\\n".as_slice()),
+            '\r' => Some(b"\\r".as_slice()),
+            '\t' => Some(b"\\t".as_slice()),
+            '\u{08}' => Some(b"\\b".as_slice()),
+            '\u{0c}' => Some(b"\\f".as_slice()),
+            '\u{00}'..='\u{1f}' => {
+                writer.extend_from_slice(&value.as_bytes()[start..index]);
+                write!(FmtWrite(writer), "\\u{:04x}", character as u32)?;
+                start = index + character.len_utf8();
+                None
+            },
+            _ => None,
+        };
+
+        if let Some(escaped) = escaped {
+            writer.extend_from_slice(&value.as_bytes()[start..index]);
+            writer.extend_from_slice(escaped);
+            start = index + character.len_utf8();
+        }
+    }
+    writer.extend_from_slice(&value.as_bytes()[start..]);
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fmt};
 
     use serde_json::json;
     use tracing::subscriber::with_default;
-    use tracing_subscriber::{registry, Layer, Registry};
+    use tracing_subscriber::{
+        fmt::{format::Writer, time::FormatTime},
+        registry, Layer, Registry,
+    };
 
     use super::JsonLayer;
     use crate::tests::MockMakeWriter;
@@ -1237,5 +1314,129 @@ mod tests {
                 "message"
             );
         });
+    }
+
+    #[test]
+    fn raw_event_key_is_json_escaped() {
+        let mut layer = JsonLayer::stdout();
+        layer.with_event("fields\"\\key");
+
+        let expected = json!({
+            "fields\"\\key": {
+                "answer": 42,
+            },
+        });
+
+        test_json(&expected, layer, || {
+            tracing::info!(answer = 42);
+        });
+    }
+
+    struct EscapingTimer;
+
+    impl FormatTime for EscapingTimer {
+        fn format_time(&self, writer: &mut Writer<'_>) -> fmt::Result {
+            writeln!(writer, "bad\\\"time")
+        }
+    }
+
+    #[test]
+    fn timer_output_is_json_escaped() {
+        let mut layer = JsonLayer::stdout();
+        layer.with_timer("timestamp", EscapingTimer);
+
+        let expected = json!({
+            "timestamp": "bad\\\"time\n",
+        });
+
+        test_json(&expected, layer, || {
+            tracing::info!("whatever");
+        });
+    }
+
+    #[test]
+    fn thread_names_escape_json_control_characters() {
+        let actual = std::thread::Builder::new()
+            .name("worker\n1".to_owned())
+            .spawn(|| {
+                let mut layer = JsonLayer::stdout();
+                layer.with_thread_names("threadName");
+
+                produce_log_line(layer, || {
+                    tracing::info!("whatever");
+                })
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+
+        let actual = serde_json::from_str::<serde_json::Value>(&actual).unwrap();
+        assert_eq!(json!({ "threadName": "worker\n1" }), actual);
+    }
+
+    #[cfg(all(
+        feature = "tracing-opentelemetry-0-31",
+        feature = "tracing-opentelemetry-0-30"
+    ))]
+    mod opentelemetry_tests {
+        use tracing::{span::Attributes, Id, Subscriber};
+        use tracing_subscriber::{layer::Context, prelude::*, registry::LookupSpan};
+
+        use super::*;
+
+        struct MixedOtelDataLayer;
+
+        impl<S> Layer<S> for MixedOtelDataLayer
+        where
+            S: Subscriber + for<'lookup> LookupSpan<'lookup>,
+        {
+            fn on_new_span(&self, _attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+                let span = ctx.span(id).unwrap();
+                let mut extensions = span.extensions_mut();
+
+                extensions.insert(tracing_opentelemetry_0_31::OtelData {
+                    parent_cx: opentelemetry_0_30::Context::new(),
+                    builder: opentelemetry_0_30::trace::SpanBuilder::from_name("incomplete"),
+                });
+                extensions.insert(tracing_opentelemetry_0_30::OtelData {
+                    parent_cx: opentelemetry_0_29::Context::new(),
+                    builder: opentelemetry_0_29::trace::SpanBuilder::from_name("complete")
+                        .with_trace_id(opentelemetry_0_29::trace::TraceId::from_bytes([
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+                        ]))
+                        .with_span_id(opentelemetry_0_29::trace::SpanId::from_bytes([
+                            0, 0, 0, 0, 0, 0, 0, 2,
+                        ])),
+                });
+            }
+        }
+
+        #[test]
+        fn opentelemetry_ids_fall_back_after_incomplete_newer_data() {
+            let mut layer = JsonLayer::stdout();
+            layer.with_opentelemetry_ids(true);
+            let make_writer = MockMakeWriter::default();
+            let collector = registry()
+                .with(MixedOtelDataLayer)
+                .with(layer.with_writer(make_writer.clone()));
+
+            with_default(collector, || {
+                let span = tracing::info_span!("span");
+                let _entered = span.enter();
+                tracing::info!("whatever");
+            });
+
+            let buf = make_writer.buf();
+            let actual = serde_json::from_slice::<serde_json::Value>(&buf).unwrap();
+            assert_eq!(
+                json!({
+                    "openTelemetry": {
+                        "spanId": "0000000000000002",
+                        "traceId": "00000000000000000000000000000001",
+                    },
+                }),
+                actual,
+            );
+        }
     }
 }

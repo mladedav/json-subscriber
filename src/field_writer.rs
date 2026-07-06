@@ -1,5 +1,3 @@
-use crate::cursor::Cursor;
-
 /// A writer passed to closures registered with
 /// [`add_multiple_dynamic_fields`](crate::JsonLayer::add_multiple_dynamic_fields).
 ///
@@ -7,13 +5,19 @@ use crate::cursor::Cursor;
 /// output. Keys are `&str` (no allocation required for static strings), and values accept any
 /// type that implements [`serde::Serialize`].
 pub struct FieldWriter<'a> {
-    writer: &'a mut String,
+    writer: &'a mut Vec<u8>,
     prefix_comma: bool,
     wrote_anything: bool,
 }
 
+pub(crate) fn write_json_key(writer: &mut Vec<u8>, key: &str) -> serde_json::Result<()> {
+    serde_json::to_writer(&mut *writer, key)?;
+    writer.push(b':');
+    Ok(())
+}
+
 impl<'a> FieldWriter<'a> {
-    pub(crate) fn new(writer: &'a mut String, prefix_comma: bool) -> Self {
+    pub(crate) fn new(writer: &'a mut Vec<u8>, prefix_comma: bool) -> Self {
         Self {
             writer,
             prefix_comma,
@@ -48,17 +52,15 @@ impl<'a> FieldWriter<'a> {
         let rollback = self.writer.len();
 
         if self.wrote_anything || self.prefix_comma {
-            self.writer.push(',');
+            self.writer.push(b',');
         }
 
-        if let Err(error) = serde_json::to_writer(&Cursor::new(self.writer), key) {
+        if let Err(error) = write_json_key(self.writer, key) {
             self.writer.truncate(rollback);
             return Err(error);
         }
 
-        self.writer.push(':');
-
-        if let Err(error) = serde_json::to_writer(&Cursor::new(self.writer), &value) {
+        if let Err(error) = serde_json::to_writer(&mut *self.writer, &value) {
             self.writer.truncate(rollback);
             return Err(error);
         }
