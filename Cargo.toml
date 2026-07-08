@@ -95,8 +95,8 @@ tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Used in an example. Should be kept in sync with the latest opentelemetry feature.
-opentelemetry_sdk = { version = "0.30", default-features = false }
-opentelemetry-stdout = "0.30"
+opentelemetry_sdk = { version = "0.32", default-features = false }
+opentelemetry-stdout = "0.32"
 
 [package.metadata.docs.rs]
 all-features = true
