@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783511631888,
+  "lastUpdate": 1783511680591,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -7207,6 +7207,434 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 448987,
             "range": "± 25361",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "mladedav",
+            "username": "mladedav"
+          },
+          "committer": {
+            "name": "mladedav",
+            "username": "mladedav"
+          },
+          "id": "0a8110f54495d61e1565fb93ec3e114538f8f60d",
+          "message": "chore: release v0.3.0",
+          "timestamp": "2026-07-08T11:39:27Z",
+          "url": "https://github.com/mladedav/json-subscriber/pull/36/commits/0a8110f54495d61e1565fb93ec3e114538f8f60d"
+        },
+        "date": 1783511680137,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/no_span_output/100",
+            "value": 81260,
+            "range": "± 2551",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/current_span/100",
+            "value": 81394,
+            "range": "± 1546",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/span_list/100",
+            "value": 81988,
+            "range": "± 1070",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/current_span_and_span_list/100",
+            "value": 87062,
+            "range": "± 1396",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/no_span_output/100",
+            "value": 194528,
+            "range": "± 2968",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/current_span/100",
+            "value": 196072,
+            "range": "± 3272",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/span_list/100",
+            "value": 197062,
+            "range": "± 1153",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/current_span_and_span_list/100",
+            "value": 196493,
+            "range": "± 573",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/1",
+            "value": 933,
+            "range": "± 38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/1",
+            "value": 991,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/1",
+            "value": 1152,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/1",
+            "value": 1225,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/10",
+            "value": 9295,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/10",
+            "value": 9905,
+            "range": "± 202",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/10",
+            "value": 11506,
+            "range": "± 72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/10",
+            "value": 12131,
+            "range": "± 65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/100",
+            "value": 92837,
+            "range": "± 553",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/100",
+            "value": 98124,
+            "range": "± 3377",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/100",
+            "value": 114912,
+            "range": "± 1341",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/100",
+            "value": 121354,
+            "range": "± 241",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/1",
+            "value": 930,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/1",
+            "value": 1006,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/1",
+            "value": 1153,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/1",
+            "value": 1233,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/5",
+            "value": 935,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/5",
+            "value": 1005,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/5",
+            "value": 1535,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/5",
+            "value": 1571,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/25",
+            "value": 935,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/25",
+            "value": 1006,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/25",
+            "value": 3070,
+            "range": "± 35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/25",
+            "value": 3054,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/1",
+            "value": 375,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/1",
+            "value": 376,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/1",
+            "value": 375,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/1",
+            "value": 376,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/10",
+            "value": 3104,
+            "range": "± 41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/10",
+            "value": 3101,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/10",
+            "value": 3095,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/10",
+            "value": 3099,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/100",
+            "value": 30199,
+            "range": "± 355",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/100",
+            "value": 30179,
+            "range": "± 693",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/100",
+            "value": 30512,
+            "range": "± 163",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/100",
+            "value": 30516,
+            "range": "± 212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/1",
+            "value": 296,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 37628,
+            "range": "± 2547",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 2962,
+            "range": "± 115",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 42020,
+            "range": "± 1610",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 14781,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 57163,
+            "range": "± 2351",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 819,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 39578,
+            "range": "± 2479",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1108,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 41637,
+            "range": "± 1975",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 38918,
+            "range": "± 2068",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 41343,
+            "range": "± 2361",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 8295,
+            "range": "± 436",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 41774,
+            "range": "± 2255",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 11153,
+            "range": "± 70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 53243,
+            "range": "± 2676",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 48447,
+            "range": "± 2495",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 58453,
+            "range": "± 2971",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 41471,
+            "range": "± 358",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 102584,
+            "range": "± 4474",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 55501,
+            "range": "± 177",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 138753,
+            "range": "± 6469",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 134596,
+            "range": "± 5249",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 456448,
+            "range": "± 26606",
             "unit": "ns/iter"
           }
         ]
