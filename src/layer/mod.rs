@@ -1,6 +1,14 @@
-use std::{borrow::Cow, cell::RefCell, collections::BTreeMap, fmt, io, sync::Arc};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::BTreeMap,
+    fmt,
+    io,
+    sync::{Arc, OnceLock},
+};
 
 use serde::Serialize;
+use tracing::{dispatcher::WeakDispatch, Dispatch};
 use tracing_core::{
     span::{Attributes, Id, Record},
     Event,
@@ -38,6 +46,7 @@ pub struct JsonLayer<S: for<'lookup> LookupSpan<'lookup> = Registry, W = fn() ->
     log_internal_errors: bool,
     keyed_values: BTreeMap<SchemaKey, JsonValue<S>>,
     flattened_values: BTreeMap<FlatSchemaKey, JsonValue<S>>,
+    dispatch: OnceLock<WeakDispatch>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -84,6 +93,9 @@ pub(crate) enum JsonValue<S: for<'lookup> LookupSpan<'lookup>> {
         Box<dyn Fn(&EventRef<'_, '_, '_, S>) -> Option<serde_json::Value> + Send + Sync>,
     ),
     DynamicFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<serde_json::Value> + Send + Sync>),
+    DynamicFromSpanWithDispatch(
+        Box<dyn Fn(&SpanRef<'_, S>, &Dispatch) -> Option<serde_json::Value> + Send + Sync>,
+    ),
     DynamicCachedFromSpan(Box<dyn Fn(&SpanRef<'_, S>) -> Option<Cached> + Send + Sync>),
     DynamicRawFromEvent(
         Box<dyn Fn(&EventRef<'_, '_, '_, S>, &mut dyn fmt::Write) -> fmt::Result + Send + Sync>,
@@ -98,6 +110,10 @@ where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
     W: for<'writer> MakeWriter<'writer> + 'static,
 {
+    fn on_register_dispatch(&self, subscriber: &tracing::Dispatch) {
+        _ = self.dispatch.set(subscriber.downgrade());
+    }
+
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let Some(span) = ctx.span(id) else {
             if self.log_internal_errors {
@@ -220,6 +236,7 @@ where
             log_internal_errors: false,
             keyed_values: BTreeMap::new(),
             flattened_values: BTreeMap::new(),
+            dispatch: OnceLock::new(),
         }
     }
 }
@@ -252,6 +269,7 @@ where
             log_internal_errors: self.log_internal_errors,
             keyed_values: self.keyed_values,
             flattened_values: self.flattened_values,
+            dispatch: self.dispatch,
         }
     }
 
@@ -315,6 +333,7 @@ where
             log_internal_errors: self.log_internal_errors,
             keyed_values: self.keyed_values,
             flattened_values: self.flattened_values,
+            dispatch: self.dispatch,
         }
     }
 
@@ -360,6 +379,7 @@ where
             log_internal_errors: self.log_internal_errors,
             keyed_values: self.keyed_values,
             flattened_values: self.flattened_values,
+            dispatch: self.dispatch,
         }
     }
 
@@ -1024,6 +1044,7 @@ where
         feature = "tracing-opentelemetry-0-30",
         feature = "tracing-opentelemetry-0-31",
         feature = "tracing-opentelemetry-0-32",
+        feature = "tracing-opentelemetry-0-33",
     ))]
     #[cfg_attr(
         docsrs,
@@ -1034,13 +1055,14 @@ where
             feature = "tracing-opentelemetry-0-30",
             feature = "tracing-opentelemetry-0-31",
             feature = "tracing-opentelemetry-0-32",
+            feature = "tracing-opentelemetry-0-33",
         ))
     )]
     pub fn with_opentelemetry_ids(&mut self, display_opentelemetry_ids: bool) -> &mut Self {
         if display_opentelemetry_ids {
             self.keyed_values.insert(
                 SchemaKey::from("openTelemetry"),
-                JsonValue::DynamicFromSpan(Box::new(|span| {
+                JsonValue::DynamicFromSpanWithDispatch(Box::new(move |span, dispatch| {
                     let mut ids: Option<serde_json::Value> = None;
 
                     macro_rules! otel_extraction {
@@ -1075,6 +1097,21 @@ where
                         };
                     }
 
+                    #[cfg(feature = "tracing-opentelemetry-0-33")]
+                    {
+                        ids = ids.or_else(|| {
+                            tracing_opentelemetry_0_33::get_otel_context(&span.id(), dispatch).map(
+                                |context| {
+                                    use opentelemetry_0_32::trace::TraceContextExt;
+
+                                    serde_json::json!({
+                                        "traceId": context.span().span_context().trace_id().to_string(),
+                                        "spanId": context.span().span_context().span_id().to_string(),
+                                    })
+                                },
+                            )
+                        });
+                    }
                     #[cfg(feature = "tracing-opentelemetry-0-32")]
                     {
                         ids = ids.or_else(|| {
