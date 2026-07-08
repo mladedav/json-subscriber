@@ -543,25 +543,8 @@ where
     /// events.
     ///
     /// [OpenTelemetry]: https://opentelemetry.io
-    #[cfg(any(
-        feature = "opentelemetry",
-        feature = "tracing-opentelemetry-0-28",
-        feature = "tracing-opentelemetry-0-29",
-        feature = "tracing-opentelemetry-0-30",
-        feature = "tracing-opentelemetry-0-31",
-        feature = "tracing-opentelemetry-0-32",
-    ))]
-    #[cfg_attr(
-        docsrs,
-        doc(any(
-            feature = "opentelemetry",
-            feature = "tracing-opentelemetry-0-28",
-            feature = "tracing-opentelemetry-0-29",
-            feature = "tracing-opentelemetry-0-30",
-            feature = "tracing-opentelemetry-0-31",
-            feature = "tracing-opentelemetry-0-32",
-        ))
-    )]
+    #[cfg(feature = "__any-tracing-opentelemetry")]
+    #[cfg_attr(docsrs, doc(feature = "__any-tracing-opentelemetry"))]
     #[must_use]
     pub fn with_opentelemetry_ids(mut self, display_opentelemetry_ids: bool) -> Self {
         self.inner.with_opentelemetry_ids(display_opentelemetry_ids);

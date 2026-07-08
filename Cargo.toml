@@ -14,31 +14,42 @@ repository = "https://github.com/mladedav/json-subscriber"
 default = []
 tracing-log = ["tracing-subscriber/tracing-log", "dep:tracing-log"]
 env-filter = ["tracing-subscriber/env-filter"]
-opentelemetry = ["dep:tracing-opentelemetry-0-25", "dep:opentelemetry-0-24"]
+opentelemetry = [
+    "dep:tracing-opentelemetry-0-25",
+    "dep:opentelemetry-0-24",
+    "__any-tracing-opentelemetry",
+]
 tracing-opentelemetry-0-28 = [
     "dep:tracing-opentelemetry-0-28",
     "dep:opentelemetry-0-27",
+    "__any-tracing-opentelemetry",
 ]
 tracing-opentelemetry-0-29 = [
     "dep:tracing-opentelemetry-0-29",
     "dep:opentelemetry-0-28",
+    "__any-tracing-opentelemetry",
 ]
 tracing-opentelemetry-0-30 = [
     "dep:tracing-opentelemetry-0-30",
     "dep:opentelemetry-0-29",
+    "__any-tracing-opentelemetry",
 ]
 tracing-opentelemetry-0-31 = [
     "dep:tracing-opentelemetry-0-31",
     "dep:opentelemetry-0-30",
+    "__any-tracing-opentelemetry",
 ]
 tracing-opentelemetry-0-32 = [
     "dep:tracing-opentelemetry-0-32",
     "dep:opentelemetry-0-31",
+    "__any-tracing-opentelemetry",
 ]
 tracing-opentelemetry-0-33 = [
     "dep:tracing-opentelemetry-0-33",
     "dep:opentelemetry-0-32",
+    "__any-tracing-opentelemetry",
 ]
+__any-tracing-opentelemetry = []
 
 # TODO Remove this for the next breaking release.
 # This is the price I have to pay to the gods of semantic versioning for failing to notice I created
