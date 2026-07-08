@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783499928876,
+  "lastUpdate": 1783511459111,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -6347,6 +6347,438 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 329436,
             "range": "± 22096",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.mladek.cz@gmail.com",
+            "name": "David Mládek",
+            "username": "mladedav"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "74abefdfddf5a6e0c3b6208ca626b697ed00fbeb",
+          "message": "feat: support tracing-opentelemetry@0.33 (#41)\n\n## Motivation\n\nSupport `tracing-opentelemetry@0.33` which reworked heavily how trace\nand span IDs are obtained.\n\n## Solution\n\nWe need to save the `Dispatch` which handles the subscriber containing\nour layer and then use that to obtain the opentelemetry context back out\nfrom the `SpanRef` we have.\n\nThis is a bit more involved than the previous ways but that's what we\nneed to do here.\n\nThe `Dispatch` can maybe later be exposed to user code as they should be\nable to use `opentelemetry` by themselves and this could also unlock\nsome more use-cases.",
+          "timestamp": "2026-07-08T13:39:21+02:00",
+          "tree_id": "be229b473388429017988410607746066ccb434b",
+          "url": "https://github.com/mladedav/json-subscriber/commit/74abefdfddf5a6e0c3b6208ca626b697ed00fbeb"
+        },
+        "date": 1783511458203,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/no_span_output/100",
+            "value": 78955,
+            "range": "± 527",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/current_span/100",
+            "value": 78998,
+            "range": "± 414",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/span_list/100",
+            "value": 77727,
+            "range": "± 305",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/current_span_and_span_list/100",
+            "value": 78923,
+            "range": "± 305",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/no_span_output/100",
+            "value": 186189,
+            "range": "± 1290",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/current_span/100",
+            "value": 186897,
+            "range": "± 2334",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/span_list/100",
+            "value": 186822,
+            "range": "± 3716",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/current_span_and_span_list/100",
+            "value": 188111,
+            "range": "± 1005",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/1",
+            "value": 924,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/1",
+            "value": 1004,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/1",
+            "value": 1149,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/1",
+            "value": 1217,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/10",
+            "value": 9325,
+            "range": "± 61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/10",
+            "value": 9953,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/10",
+            "value": 11426,
+            "range": "± 87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/10",
+            "value": 12076,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/100",
+            "value": 93347,
+            "range": "± 425",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/100",
+            "value": 99404,
+            "range": "± 552",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/100",
+            "value": 114136,
+            "range": "± 604",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/100",
+            "value": 122523,
+            "range": "± 445",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/1",
+            "value": 922,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/1",
+            "value": 996,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/1",
+            "value": 1143,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/1",
+            "value": 1210,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/5",
+            "value": 923,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/5",
+            "value": 1000,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/5",
+            "value": 1582,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/5",
+            "value": 1611,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/25",
+            "value": 924,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/25",
+            "value": 1003,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/25",
+            "value": 3081,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/25",
+            "value": 3094,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/1",
+            "value": 348,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/1",
+            "value": 348,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/1",
+            "value": 347,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/1",
+            "value": 348,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/10",
+            "value": 2853,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/10",
+            "value": 2854,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/10",
+            "value": 2854,
+            "range": "± 40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/10",
+            "value": 2854,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/100",
+            "value": 27837,
+            "range": "± 105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/100",
+            "value": 27840,
+            "range": "± 126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/100",
+            "value": 27862,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/100",
+            "value": 27834,
+            "range": "± 119",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/1",
+            "value": 284,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 42101,
+            "range": "± 2341",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 2864,
+            "range": "± 40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 44335,
+            "range": "± 2080",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 14310,
+            "range": "± 105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 61782,
+            "range": "± 3023",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 857,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 44939,
+            "range": "± 1669",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1113,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 47791,
+            "range": "± 2124",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 44274,
+            "range": "± 1509",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 46449,
+            "range": "± 2616",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 8557,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 51446,
+            "range": "± 2132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 11279,
+            "range": "± 87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 48676,
+            "range": "± 3344",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 47298,
+            "range": "± 2264",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 83855,
+            "range": "± 3360",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 42800,
+            "range": "± 217",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 93026,
+            "range": "± 5420",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 57822,
+            "range": "± 409",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 150140,
+            "range": "± 5499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 151334,
+            "range": "± 9185",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 326090,
+            "range": "± 20234",
             "unit": "ns/iter"
           }
         ]
