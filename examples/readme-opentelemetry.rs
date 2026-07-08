@@ -1,11 +1,11 @@
 mod yak_shave;
 
-#[cfg(feature = "tracing-opentelemetry-0-31")]
+#[cfg(feature = "tracing-opentelemetry-0-33")]
 fn main() {
     use opentelemetry::trace::TracerProvider;
-    use opentelemetry_0_30 as opentelemetry;
+    use opentelemetry_0_32 as opentelemetry;
     use opentelemetry_sdk;
-    use tracing_opentelemetry_0_31 as tracing_opentelemetry;
+    use tracing_opentelemetry_0_33 as tracing_opentelemetry;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
     let exporter = opentelemetry_stdout::SpanExporter::default();
@@ -37,7 +37,7 @@ fn main() {
     );
 }
 
-#[cfg(not(feature = "tracing-opentelemetry-0-31"))]
+#[cfg(not(feature = "tracing-opentelemetry-0-33"))]
 fn main() {
-    panic!("This example needs the `tracing-opentelemetry-0-31` feature.");
+    panic!("This example needs the `tracing-opentelemetry-0-33` feature.");
 }

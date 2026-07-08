@@ -1037,27 +1037,8 @@ where
     /// nothing.
     ///
     /// [OpenTelemetry]: https://opentelemetry.io
-    #[cfg(any(
-        feature = "opentelemetry",
-        feature = "tracing-opentelemetry-0-28",
-        feature = "tracing-opentelemetry-0-29",
-        feature = "tracing-opentelemetry-0-30",
-        feature = "tracing-opentelemetry-0-31",
-        feature = "tracing-opentelemetry-0-32",
-        feature = "tracing-opentelemetry-0-33",
-    ))]
-    #[cfg_attr(
-        docsrs,
-        doc(any(
-            feature = "opentelemetry",
-            feature = "tracing-opentelemetry-0-28",
-            feature = "tracing-opentelemetry-0-29",
-            feature = "tracing-opentelemetry-0-30",
-            feature = "tracing-opentelemetry-0-31",
-            feature = "tracing-opentelemetry-0-32",
-            feature = "tracing-opentelemetry-0-33",
-        ))
-    )]
+    #[cfg(feature = "__any-tracing-opentelemetry")]
+    #[cfg_attr(docsrs, doc(feature = "__any-tracing-opentelemetry"))]
     pub fn with_opentelemetry_ids(&mut self, display_opentelemetry_ids: bool) -> &mut Self {
         if display_opentelemetry_ids {
             self.keyed_values.insert(

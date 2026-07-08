@@ -346,7 +346,7 @@ dependencies = [
  "opentelemetry 0.31.0",
  "opentelemetry 0.32.0",
  "opentelemetry-stdout",
- "opentelemetry_sdk 0.30.0",
+ "opentelemetry_sdk 0.32.1",
  "serde",
  "serde_json",
  "snafu",
@@ -542,13 +542,13 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-stdout"
-version = "0.30.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "447191061af41c3943e082ea359ab8b64ff27d6d34d30d327df309ddef1eef6f"
+checksum = "a1b1c6a247d79091f0062a5f4bd058589525cf987a8d4c169440d9c1be72f0ad"
 dependencies = [
  "chrono",
- "opentelemetry 0.30.0",
- "opentelemetry_sdk 0.30.0",
+ "opentelemetry 0.32.0",
+ "opentelemetry_sdk 0.32.1",
 ]
 
 [[package]]
@@ -625,7 +625,22 @@ dependencies = [
  "opentelemetry 0.30.0",
  "percent-encoding",
  "rand 0.9.4",
- "serde_json",
+ "thiserror 2.0.11",
+]
+
+[[package]]
+name = "opentelemetry_sdk"
+version = "0.32.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b59f80e1ac4d5ff7a2db8fb6c80badb7f0f3f858211fba08dd9aaec750894f9"
+dependencies = [
+ "futures-channel",
+ "futures-executor",
+ "futures-util",
+ "opentelemetry 0.32.0",
+ "percent-encoding",
+ "portable-atomic",
+ "rand 0.9.4",
  "thiserror 2.0.11",
 ]
 
@@ -646,6 +661,12 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "portable-atomic"
+version = "1.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
 
 [[package]]
 name = "powerfmt"
