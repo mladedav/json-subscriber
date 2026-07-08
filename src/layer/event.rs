@@ -1,7 +1,7 @@
 use std::{borrow::Cow, fmt, ops::Deref};
 
 use serde::{ser::SerializeMap, Serializer};
-use tracing::{Event, Metadata, Subscriber};
+use tracing::{dispatcher::WeakDispatch, Event, Metadata, Subscriber};
 #[cfg(feature = "tracing-log")]
 use tracing_log::NormalizeEvent;
 use tracing_subscriber::{
@@ -93,7 +93,7 @@ where
             let mut serialized_anything_serde = false;
 
             for (SchemaKey::Static(key), value) in &self.keyed_values {
-                let Some(value) = resolve_json_value(value, &event_ref) else {
+                let Some(value) = resolve_json_value(value, &event_ref, self.dispatch.get()) else {
                     continue;
                 };
 
@@ -187,7 +187,7 @@ where
                     continue;
                 }
 
-                let Some(value) = resolve_json_value(value, &event_ref) else {
+                let Some(value) = resolve_json_value(value, &event_ref, self.dispatch.get()) else {
                     continue;
                 };
 
@@ -294,6 +294,7 @@ where
 fn resolve_json_value<'a, S: Subscriber + for<'lookup> LookupSpan<'lookup>>(
     value: &'a JsonValue<S>,
     event: &EventRef<'_, '_, '_, S>,
+    dispatch: Option<&WeakDispatch>,
 ) -> Option<MaybeCached<'a, S>> {
     match value {
         JsonValue::Serde(value) => Some(MaybeCached::Serde(Cow::Borrowed(value))),
@@ -302,6 +303,14 @@ fn resolve_json_value<'a, S: Subscriber + for<'lookup> LookupSpan<'lookup>>(
             event
                 .parent_span()
                 .and_then(fun)
+                .map(Cow::Owned)
+                .map(MaybeCached::Serde)
+        },
+        JsonValue::DynamicFromSpanWithDispatch(fun) => {
+            event
+                .parent_span()
+                .zip(dispatch.and_then(WeakDispatch::upgrade))
+                .and_then(|(span, dispatch)| fun(span, &dispatch))
                 .map(Cow::Owned)
                 .map(MaybeCached::Serde)
         },
