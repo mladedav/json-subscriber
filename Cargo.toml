@@ -14,6 +14,7 @@ repository = "https://github.com/mladedav/json-subscriber"
 default = []
 tracing-log = ["tracing-subscriber/tracing-log", "dep:tracing-log"]
 env-filter = ["tracing-subscriber/env-filter"]
+valuable = ["tracing/valuable", "tracing-core/valuable", "tracing-serde/valuable", "dep:valuable", "dep:valuable-serde"]
 opentelemetry = [
     "dep:tracing-opentelemetry-0-25",
     "dep:opentelemetry-0-24",
@@ -103,6 +104,10 @@ async-trait = { version = "0.1.9", default-features = false, optional = true }
 # Another dependency that needs to have higher version to compile
 lazy_static = { version = "1.1.0", default-features = false, optional = true }
 
+valuable = { version = "0.1.0", default-features = false, features = ["derive"], optional = true }
+valuable-serde = { version = "0.1.0", default-features = false, features = ["std"], optional = true }
+
+
 
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false }
@@ -132,4 +137,4 @@ name = "operations"
 harness = false
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(bench_tracing_baseline)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tracing_unstable)', 'cfg(bench_tracing_baseline)'] }

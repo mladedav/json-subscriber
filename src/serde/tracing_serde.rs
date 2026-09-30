@@ -124,4 +124,15 @@ where
                 .serialize_entry((self.renames)(field.name(), self.context), &value);
         }
     }
+
+    /// Visit a value implementing the `valuable` crate's `Valuable` trait.
+    #[cfg(all(tracing_unstable, feature = "valuable"))]
+    fn record_value(&mut self, field: &Field, value: valuable::Value<'_>) {
+        if self.state.is_ok() {
+            self.state = self.serializer.serialize_entry(
+                (self.renames)(field.name(), self.context),
+                &valuable_serde::Serializable::new(value),
+            );
+        }
+    }
 }
