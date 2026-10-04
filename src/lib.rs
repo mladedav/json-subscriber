@@ -115,7 +115,7 @@
 //! ```
 //!
 //! ```text
-//! RUSTFLAGS="--cfg tracing_unstable" cargo build --features valuable
+//! RUSTFLAGS="--cfg tracing_unstable" cargo build
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
