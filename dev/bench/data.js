@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791222091364,
+  "lastUpdate": 1791222405416,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -11507,6 +11507,438 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 447760,
             "range": "± 25164",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "50703897+Lur1an@users.noreply.github.com",
+            "name": "Lurian",
+            "username": "Lur1an"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "392c6860b3ec0e05e1419b630e37c8acb0f785fc",
+          "message": "Implement tracing valuable support (#44)\n\n## Motivation\n\nThe tokio tracing subscriber includes valuable support via `--cfg\ntracing_unstable` and the `valuable` feature flag.\nI heavily use `valuable` in my own applications and was actually\nconsidering using this Json subscriber, `valuable` would be the only\nthing missing for feature parity.\n\n## Solution\n\nI've added support for valuable just like `tracing` crate does, gated\nbehind a feature flag & compiler flag. Just needed to implemented\n`Visit::record_value`.",
+          "timestamp": "2026-10-05T19:35:12+02:00",
+          "tree_id": "fbc56d30a17cb32f0a97f91de3f2cb43d543dc05",
+          "url": "https://github.com/mladedav/json-subscriber/commit/392c6860b3ec0e05e1419b630e37c8acb0f785fc"
+        },
+        "date": 1791222404673,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/no_span_output/100",
+            "value": 72543,
+            "range": "± 1287",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/current_span/100",
+            "value": 71830,
+            "range": "± 477",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/span_list/100",
+            "value": 71617,
+            "range": "± 752",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/current_span_and_span_list/100",
+            "value": 71806,
+            "range": "± 605",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/no_span_output/100",
+            "value": 157217,
+            "range": "± 1400",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/current_span/100",
+            "value": 157884,
+            "range": "± 1405",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/span_list/100",
+            "value": 158264,
+            "range": "± 1469",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/current_span_and_span_list/100",
+            "value": 160711,
+            "range": "± 1321",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/1",
+            "value": 813,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/1",
+            "value": 859,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/1",
+            "value": 976,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/1",
+            "value": 1043,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/10",
+            "value": 8105,
+            "range": "± 89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/10",
+            "value": 8602,
+            "range": "± 81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/10",
+            "value": 9856,
+            "range": "± 85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/10",
+            "value": 10556,
+            "range": "± 82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/100",
+            "value": 81733,
+            "range": "± 823",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/100",
+            "value": 87101,
+            "range": "± 424",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/100",
+            "value": 98781,
+            "range": "± 578",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/100",
+            "value": 105636,
+            "range": "± 1149",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/1",
+            "value": 821,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/1",
+            "value": 867,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/1",
+            "value": 997,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/1",
+            "value": 1061,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/5",
+            "value": 815,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/5",
+            "value": 864,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/5",
+            "value": 1408,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/5",
+            "value": 1465,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/25",
+            "value": 814,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/25",
+            "value": 865,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/25",
+            "value": 3251,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/25",
+            "value": 3249,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/1",
+            "value": 368,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/1",
+            "value": 368,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/1",
+            "value": 368,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/1",
+            "value": 368,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/10",
+            "value": 2698,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/10",
+            "value": 2697,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/10",
+            "value": 2694,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/10",
+            "value": 2696,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/100",
+            "value": 25945,
+            "range": "± 94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/100",
+            "value": 25944,
+            "range": "± 176",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/100",
+            "value": 25941,
+            "range": "± 241",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/100",
+            "value": 25946,
+            "range": "± 128",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/1",
+            "value": 293,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 30445,
+            "range": "± 1492",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 2943,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 33002,
+            "range": "± 1689",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 14751,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 50376,
+            "range": "± 3699",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 751,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 31608,
+            "range": "± 1400",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1024,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 34236,
+            "range": "± 1917",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 31157,
+            "range": "± 1807",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 32637,
+            "range": "± 1734",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 7479,
+            "range": "± 63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 35596,
+            "range": "± 1928",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 10197,
+            "range": "± 106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 41933,
+            "range": "± 4852",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 39067,
+            "range": "± 2482",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 60985,
+            "range": "± 3475",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 37552,
+            "range": "± 380",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 80790,
+            "range": "± 3772",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 51248,
+            "range": "± 396",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 97859,
+            "range": "± 4999",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 114002,
+            "range": "± 6372",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 405731,
+            "range": "± 28614",
             "unit": "ns/iter"
           }
         ]
