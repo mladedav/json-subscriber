@@ -38,6 +38,8 @@ jobs:
       with:
         toolchain: ${{ env.RUSTC_VERSION }}
     - uses: Swatinem/rust-cache@v2
+    - name: Remove stale criterion data restored from cache
+      run: rm -rf target/criterion
     - name: Get rustc version
       id: rustc_version
       run: echo "version=$(rustc --version)" >> $GITHUB_OUTPUT
