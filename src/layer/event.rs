@@ -155,7 +155,7 @@ where
                         writer.push_str(key);
                         writer.push_str("\":");
                         let start_position = writer.len();
-                        match raw_fun(&event_ref, &mut *writer) {
+                        match raw_fun(&event_ref, *writer) {
                             Ok(()) => {
                                 debug_assert!(
                                     serde_json::to_value(&writer[start_position..]).is_ok(),
