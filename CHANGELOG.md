@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support `tracing-opentelemetry` 0.34 and `opentelemetry` 0.33.
+
 ## [0.3.0](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.2.8...json-subscriber-v0.3.0) - 2026-07-08
 
 ### Added

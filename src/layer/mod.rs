@@ -1078,21 +1078,35 @@ where
                         };
                     }
 
-                    #[cfg(feature = "tracing-opentelemetry-0-33")]
-                    {
-                        ids = ids.or_else(|| {
-                            tracing_opentelemetry_0_33::get_otel_context(&span.id(), dispatch).map(
-                                |context| {
-                                    use opentelemetry_0_32::trace::TraceContextExt;
-
-                                    serde_json::json!({
-                                        "traceId": context.span().span_context().trace_id().to_string(),
-                                        "spanId": context.span().span_context().span_id().to_string(),
-                                    })
-                                },
-                            )
-                        });
+                    macro_rules! otel_context_extraction {
+                        ($feature:literal, $tracing_otel_crate:ident, $otel_crate:ident) => {
+                            #[cfg(feature = $feature)]
+                            {
+                                use $otel_crate::trace::TraceContextExt;
+                                ids = ids.or_else(|| {
+                                    let context =
+                                        $tracing_otel_crate::get_otel_context(&span.id(), dispatch)?;
+                                    let otel_span = context.span();
+                                    let span_context = otel_span.span_context();
+                                    Some(serde_json::json!({
+                                        "traceId": span_context.trace_id().to_string(),
+                                        "spanId": span_context.span_id().to_string(),
+                                    }))
+                                });
+                            }
+                        };
                     }
+
+                    otel_context_extraction!(
+                        "tracing-opentelemetry-0-34",
+                        tracing_opentelemetry_0_34,
+                        opentelemetry_0_33
+                    );
+                    otel_context_extraction!(
+                        "tracing-opentelemetry-0-33",
+                        tracing_opentelemetry_0_33,
+                        opentelemetry_0_32
+                    );
                     #[cfg(feature = "tracing-opentelemetry-0-32")]
                     {
                         ids = ids.or_else(|| {
