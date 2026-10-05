@@ -110,7 +110,7 @@ pub struct SubscriberBuilder<W = fn() -> io::Stdout, T = SystemTime, F = LevelFi
     flatten_event: bool,
     display_current_span: bool,
     display_span_list: bool,
-    #[cfg(feature = "opentelemetry")]
+    #[cfg(feature = "__any-tracing-opentelemetry")]
     display_opentelemetry_ids: bool,
 }
 
@@ -132,7 +132,7 @@ impl Default for SubscriberBuilder {
             flatten_event: false,
             display_current_span: true,
             display_span_list: true,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: false,
         }
     }
@@ -284,7 +284,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
@@ -354,7 +354,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
@@ -406,7 +406,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
@@ -471,7 +471,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
@@ -493,7 +493,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
@@ -616,8 +616,8 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
     /// events.
     ///
     /// [OpenTelemetry]: https://opentelemetry.io
-    #[cfg(feature = "opentelemetry")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+    #[cfg(feature = "__any-tracing-opentelemetry")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "__any-tracing-opentelemetry")))]
     #[must_use]
     pub fn with_opentelemetry_ids(self, display_opentelemetry_ids: bool) -> Self {
         SubscriberBuilder {
@@ -693,7 +693,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
@@ -746,7 +746,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
@@ -806,7 +806,7 @@ impl<W, T, F> SubscriberBuilder<W, T, F> {
             flatten_event: self.flatten_event,
             display_current_span: self.display_current_span,
             display_span_list: self.display_span_list,
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "__any-tracing-opentelemetry")]
             display_opentelemetry_ids: self.display_opentelemetry_ids,
         }
     }
