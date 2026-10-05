@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791222856280,
+  "lastUpdate": 1791223755436,
   "repoUrl": "https://github.com/mladedav/json-subscriber",
   "entries": {
     "Rust Benchmark (1.89.0)": [
@@ -12795,6 +12795,438 @@ window.BENCHMARK_DATA = {
             "name": "event/multi-parent/multithreaded/50",
             "value": 354864,
             "range": "± 23880",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "41898282+github-actions[bot]@users.noreply.github.com",
+            "name": "github-actions[bot]",
+            "username": "github-actions[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "244372309a26aa2d6ccbdd957adc67afc5a6c05d",
+          "message": "chore: release v0.3.1 (#47)\n\n## 🤖 New release\n\n* `json-subscriber`: 0.3.0 -> 0.3.1 (✓ API compatible changes)\n\n<details><summary><i><b>Changelog</b></i></summary><p>\n\n<blockquote>\n\n##\n[0.3.1](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.3.0...json-subscriber-v0.3.1)\n- 2026-10-05\n\n### Other\n\n- Implement tracing valuable support\n([#44](https://github.com/mladedav/json-subscriber/pull/44))\n- fix criterion benchmark usage in CI\n- fix clippy lint\n- Expose `with_opentelemetry_ids()` for all supported versions\n([#45](https://github.com/mladedav/json-subscriber/pull/45))\n- Add support for `tracing-opentelemetry` 0.34\n([#46](https://github.com/mladedav/json-subscriber/pull/46))\n\n### Added\n\n- Support `tracing-opentelemetry` 0.34 and `opentelemetry` 0.33.\n</blockquote>\n\n\n</p></details>\n\n---\nThis PR was generated with\n[release-plz](https://github.com/release-plz/release-plz/).\n\nCo-authored-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>",
+          "timestamp": "2026-10-05T19:57:50+02:00",
+          "tree_id": "20a9b0e9131ce0c01267fb12f37ba745fb21c717",
+          "url": "https://github.com/mladedav/json-subscriber/commit/244372309a26aa2d6ccbdd957adc67afc5a6c05d"
+        },
+        "date": 1791223754552,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "new_span/no_span_output/100",
+            "value": 80764,
+            "range": "± 587",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/current_span/100",
+            "value": 80618,
+            "range": "± 414",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/span_list/100",
+            "value": 80377,
+            "range": "± 672",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/current_span_and_span_list/100",
+            "value": 80867,
+            "range": "± 536",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/no_span_output/100",
+            "value": 197134,
+            "range": "± 1594",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/current_span/100",
+            "value": 195355,
+            "range": "± 1122",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/span_list/100",
+            "value": 194653,
+            "range": "± 1379",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_at_root/current_span_and_span_list/100",
+            "value": 196675,
+            "range": "± 1438",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/1",
+            "value": 996,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/1",
+            "value": 1062,
+            "range": "± 38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/1",
+            "value": 1217,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/1",
+            "value": 1271,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/10",
+            "value": 10332,
+            "range": "± 237",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/10",
+            "value": 11023,
+            "range": "± 114",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/10",
+            "value": 12135,
+            "range": "± 95",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/10",
+            "value": 12713,
+            "range": "± 148",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/no_span_output/100",
+            "value": 104837,
+            "range": "± 838",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span/100",
+            "value": 109748,
+            "range": "± 857",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/span_list/100",
+            "value": 121220,
+            "range": "± 977",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_span/current_span_and_span_list/100",
+            "value": 127400,
+            "range": "± 3875",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/1",
+            "value": 1036,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/1",
+            "value": 1100,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/1",
+            "value": 1211,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/1",
+            "value": 1263,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/5",
+            "value": 1028,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/5",
+            "value": 1103,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/5",
+            "value": 1542,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/5",
+            "value": 1609,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/no_span_output/25",
+            "value": 1032,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span/25",
+            "value": 1108,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/span_list/25",
+            "value": 3088,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event_in_nested_span/current_span_and_span_list/25",
+            "value": 3136,
+            "range": "± 80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/1",
+            "value": 384,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/1",
+            "value": 384,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/1",
+            "value": 384,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/1",
+            "value": 383,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/10",
+            "value": 2847,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/10",
+            "value": 2848,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/10",
+            "value": 2850,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/10",
+            "value": 2851,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/no_span_output/100",
+            "value": 27281,
+            "range": "± 205",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span/100",
+            "value": 27301,
+            "range": "± 105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/span_list/100",
+            "value": 27276,
+            "range": "± 165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "record_value_in_span/current_span_and_span_list/100",
+            "value": 27294,
+            "range": "± 109",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/1",
+            "value": 278,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/1",
+            "value": 42141,
+            "range": "± 1800",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/10",
+            "value": 2818,
+            "range": "± 66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/10",
+            "value": 47142,
+            "range": "± 2028",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/single_thread/50",
+            "value": 14174,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "new_span/multithreaded/50",
+            "value": 60997,
+            "range": "± 2545",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/1",
+            "value": 856,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/1",
+            "value": 44244,
+            "range": "± 1871",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/1",
+            "value": 1129,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/1",
+            "value": 42286,
+            "range": "± 1905",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/1",
+            "value": 40393,
+            "range": "± 2571",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/1",
+            "value": 46927,
+            "range": "± 2291",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/10",
+            "value": 8549,
+            "range": "± 75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/10",
+            "value": 50116,
+            "range": "± 2726",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/10",
+            "value": 11145,
+            "range": "± 132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/10",
+            "value": 58977,
+            "range": "± 2309",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/10",
+            "value": 54801,
+            "range": "± 2289",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/10",
+            "value": 82335,
+            "range": "± 4751",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/single_threaded/50",
+            "value": 42765,
+            "range": "± 129",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/root/multithreaded/50",
+            "value": 115923,
+            "range": "± 7257",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/single_threaded/50",
+            "value": 56003,
+            "range": "± 436",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/unique_parent/multithreaded/50",
+            "value": 111821,
+            "range": "± 7731",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/shared_parent/multithreaded/50",
+            "value": 145570,
+            "range": "± 5982",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "event/multi-parent/multithreaded/50",
+            "value": 451067,
+            "range": "± 24595",
             "unit": "ns/iter"
           }
         ]
