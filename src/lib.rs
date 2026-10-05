@@ -96,6 +96,27 @@
 //!   "timestamp": "2024-06-06T23:09:07.620167Z"
 //! }
 //! ```
+//!
+//! ### `valuable` (experimental)
+//!
+//! When the experimental `valuable` Cargo feature is enabled, user-defined types implementing
+//! [`valuable::Valuable`](https://docs.rs/valuable) recorded as span or event fields are serialized
+//! as structured JSON instead of being formatted with their `Debug` implementation. This includes
+//! flattened event fields and the current-span section.
+//!
+//! Mirroring the contract of the tracing ecosystem (`tracing`, `tracing-core`,
+//! `tracing-subscriber`), this feature is unstable: in addition to enabling the feature, builds
+//! MUST be compiled with `--cfg tracing_unstable`, typically by setting
+//! `RUSTFLAGS="--cfg tracing_unstable"`. Builds without both of these remain completely unchanged.
+//!
+//! ```toml
+//! [dependencies]
+//! json-subscriber = { version = "0.3", features = ["valuable"] }
+//! ```
+//!
+//! ```text
+//! RUSTFLAGS="--cfg tracing_unstable" cargo build
+//! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(clippy::pedantic)]

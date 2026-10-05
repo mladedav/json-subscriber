@@ -1270,4 +1270,100 @@ mod tests {
             );
         });
     }
+
+    #[cfg(all(tracing_unstable, feature = "valuable"))]
+    #[test]
+    fn valuable_fields_are_structured() {
+        use valuable::Valuable;
+        #[derive(Valuable)]
+        struct Nested {
+            numbers: Vec<u32>,
+            flag: bool,
+            label: &'static str,
+        }
+
+        #[derive(Valuable)]
+        struct Payload {
+            nested: Nested,
+            count: i64,
+        }
+
+        let span_payload = Payload {
+            nested: Nested {
+                numbers: vec![1, 2, 3],
+                flag: true,
+                label: "span",
+            },
+            count: -7,
+        };
+        let event_payload = Payload {
+            nested: Nested {
+                numbers: vec![4, 5],
+                flag: false,
+                label: "event",
+            },
+            count: 42,
+        };
+
+        let renames = HashMap::from([("payload".to_owned(), "renamed_payload".to_owned())]);
+        let mut layer = JsonLayer::stdout();
+        layer.with_current_span("span");
+        layer.with_flattened_event_with_renames(
+            move |name, map| map.get(name).map_or(name, String::as_str),
+            renames,
+        );
+
+        let expected = json!({
+            "message": "valuable event",
+            "renamed_payload": {
+                "nested": {
+                    "numbers": [4, 5],
+                    "flag": false,
+                    "label": "event",
+                },
+                "count": 42,
+            },
+            "span": {
+                "name": "valuable_span",
+                "payload": {
+                    "nested": {
+                        "numbers": [1, 2, 3],
+                        "flag": true,
+                        "label": "span",
+                    },
+                    "count": -7,
+                },
+            },
+        });
+        test_json(&expected, layer, || {
+            let _guard =
+                tracing::info_span!("valuable_span", payload = span_payload.as_value()).entered();
+            tracing::info!(payload = event_payload.as_value(), "valuable event");
+        });
+    }
+
+    #[cfg(all(tracing_unstable, feature = "valuable"))]
+    #[test]
+    fn valuable_fields_on_default_path() {
+        use tracing::field::valuable as tracing_valuable;
+        use valuable::Valuable;
+        #[derive(Valuable)]
+        struct Payload {
+            count: i64,
+        }
+        let payload = Payload { count: 42 };
+
+        let mut layer = JsonLayer::stdout();
+        layer.with_flattened_event();
+
+        let expected = json!({
+            "message": "default path",
+            "payload": {
+                "count": 42,
+            },
+        });
+        test_json(&expected, layer, || {
+            tracing::info!(payload = tracing_valuable(&payload), "default path");
+        });
+    }
 }

@@ -126,4 +126,25 @@ impl field::Visit for JsonVisitor<'_> {
             },
         }
     }
+
+    /// Visit a value implementing the `valuable` crate's `Valuable` trait.
+    #[cfg(all(tracing_unstable, feature = "valuable"))]
+    fn record_value(&mut self, field: &field::Field, value: valuable::Value<'_>) {
+        let Ok(value) = serde_json::to_value(valuable_serde::Serializable::new(value)) else {
+            return;
+        };
+        let entry = self.0.fields.entry(field.name());
+        match entry {
+            Entry::Vacant(vacant) => {
+                self.0.version += 1;
+                vacant.insert(value);
+            },
+            Entry::Occupied(mut entry) => {
+                if entry.get() != &value {
+                    self.0.version += 1;
+                }
+                entry.insert(value);
+            },
+        }
+    }
 }
