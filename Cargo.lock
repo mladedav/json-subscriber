@@ -338,6 +338,7 @@ dependencies = [
  "async-trait",
  "criterion",
  "lazy_static",
+ "log",
  "opentelemetry 0.24.0",
  "opentelemetry 0.27.1",
  "opentelemetry 0.28.0",
