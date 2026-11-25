@@ -110,6 +110,7 @@ valuable-serde = { version = "0.1.0", default-features = false, features = ["std
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false }
 
+log = "0.4.17"
 snafu = "0.6.10"
 thiserror = "1.0.31"
 tracing = { version = "0.1", features = ["attributes"] }

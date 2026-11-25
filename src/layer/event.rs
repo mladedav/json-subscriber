@@ -22,6 +22,8 @@ pub struct EventRef<'a, 'b, 'c, R: for<'lookup> LookupSpan<'lookup>> {
     context: &'a Context<'b, R>,
     event: &'a Event<'b>,
     span: Option<SpanRef<'c, R>>,
+    #[cfg(feature = "tracing-log")]
+    normalized_metadata: Option<Metadata<'a>>,
 }
 
 impl<'a, R: for<'lookup> LookupSpan<'lookup>> Deref for EventRef<'a, '_, '_, R> {
@@ -39,13 +41,12 @@ impl<'c, R: Subscriber + for<'lookup> LookupSpan<'lookup>> EventRef<'_, '_, 'c, 
         self.event.metadata().name()
     }
 
-    #[cfg(feature = "tracing-log")]
-    #[allow(dead_code)]
-    pub fn normalized_metadata(&self) -> Option<Metadata<'_>> {
-        self.event.normalized_metadata()
-    }
+    pub fn metadata(&self) -> &Metadata<'_> {
+        #[cfg(feature = "tracing-log")]
+        if let Some(metadata) = &self.normalized_metadata {
+            return metadata;
+        }
 
-    pub fn metadata(&self) -> &'static Metadata<'static> {
         self.event.metadata()
     }
 
@@ -87,6 +88,8 @@ where
                 context,
                 event,
                 span,
+                #[cfg(feature = "tracing-log")]
+                normalized_metadata: event.normalized_metadata(),
             };
 
             let mut serialized_anything = false;

@@ -1271,6 +1271,36 @@ mod tests {
         });
     }
 
+    #[cfg(feature = "tracing-log")]
+    #[test]
+    fn normalizes_log_record_metadata() {
+        let mut layer = JsonLayer::stdout();
+        layer.with_level("level");
+        layer.with_target("target");
+        layer.with_file("filename");
+        layer.with_line_number("line_number");
+
+        let expected = json!({
+            "level": "WARN",
+            "target": "some_crate::some_module",
+            "filename": "src/some_module.rs",
+            "line_number": 42,
+        });
+
+        test_json(&expected, layer, || {
+            tracing_log::format_trace(
+                &log::Record::builder()
+                    .args(format_args!("from log"))
+                    .level(log::Level::Warn)
+                    .target("some_crate::some_module")
+                    .file(Some("src/some_module.rs"))
+                    .line(Some(42))
+                    .build(),
+            )
+            .unwrap();
+        });
+    }
+
     #[cfg(all(tracing_unstable, feature = "valuable"))]
     #[test]
     fn valuable_fields_are_structured() {
