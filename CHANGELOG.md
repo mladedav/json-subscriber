@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.3.1...json-subscriber-v0.4.0) - 2026-11-25
+
+### Fixed
+
+- *(layer)* [**breaking**] use normalized metadata for log records ([#50](https://github.com/mladedav/json-subscriber/pull/50))
+
 ## [0.3.1](https://github.com/mladedav/json-subscriber/compare/json-subscriber-v0.3.0...json-subscriber-v0.3.1) - 2026-10-05
 
 ### Added
